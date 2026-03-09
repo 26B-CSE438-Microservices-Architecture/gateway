@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>CleanArchitecture.WebApi</name>
+    </assembly>
+    <members>
+        <member name="T:CleanArchitecture.WebApi.Grpc.AuthReflection">
+            <summary>Holder for reflection information generated from Protos/auth.proto</summary>
+        </member>
+        <member name="P:CleanArchitecture.WebApi.Grpc.AuthReflection.Descriptor">
+            <summary>File descriptor for Protos/auth.proto</summary>
+        </member>
+        <member name="F:CleanArchitecture.WebApi.Grpc.ValidateTokenRequest.TokenFieldNumber">
+            <summary>Field number for the "token" field.</summary>
+        </member>
+        <member name="F:CleanArchitecture.WebApi.Grpc.ValidateTokenResponse.IsValidFieldNumber">
+            <summary>Field number for the "isValid" field.</summary>
+        </member>
+        <member name="F:CleanArchitecture.WebApi.Grpc.ValidateTokenResponse.UserIdFieldNumber">
+            <summary>Field number for the "userId" field.</summary>
+        </member>
+        <member name="F:CleanArchitecture.WebApi.Grpc.ValidateTokenResponse.RolesFieldNumber">
+            <summary>Field number for the "roles" field.</summary>
+        </member>
+        <member name="P:CleanArchitecture.WebApi.Grpc.AuthService.Descriptor">
+            <summary>Service descriptor</summary>
+        </member>
+        <member name="T:CleanArchitecture.WebApi.Grpc.AuthService.AuthServiceBase">
+            <summary>Base class for server-side implementations of AuthService</summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Grpc.AuthService.BindService(CleanArchitecture.WebApi.Grpc.AuthService.AuthServiceBase)">
+            <summary>Creates service definition that can be registered with a server</summary>
+            <param name="serviceImpl">An object implementing the server-side handling logic.</param>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Grpc.AuthService.BindService(Grpc.Core.ServiceBinderBase,CleanArchitecture.WebApi.Grpc.AuthService.AuthServiceBase)">
+            <summary>Register service method with a service binder with or without implementation. Useful when customizing the service binding logic.
+            Note: this method is part of an experimental API that can change or be removed without any prior notice.</summary>
+            <param name="serviceBinder">Service methods will be bound by calling <c>AddMethod</c> on this object.</param>
+            <param name="serviceImpl">An object implementing the server-side handling logic.</param>
+        </member>
+    </members>
+</doc>
