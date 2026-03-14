@@ -63,13 +63,17 @@ namespace CleanArchitecture.Infrastructure.Services
             }
             JwtSecurityToken jwtSecurityToken = await GenerateJWToken(user);
             AuthenticationResponse response = new AuthenticationResponse();
-            response.Id = user.Id;
             response.JWToken = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken);
-            response.Email = user.Email;
-            response.UserName = user.UserName;
-            var rolesList = await _userManager.GetRolesAsync(user).ConfigureAwait(false);
-            response.Roles = rolesList.ToList();
-            response.IsVerified = user.EmailConfirmed;
+            response.ExpiresIn = 3600;
+            response.User = new UserDto
+            {
+                Id = user.Id,
+                Name = user.FirstName,
+                Surname = user.LastName,
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber
+            };
+            
             var refreshToken = GenerateRefreshToken(ipAddress);
             if (user.RefreshTokens == null)
                 user.RefreshTokens = new List<RefreshToken>();
@@ -81,20 +85,20 @@ namespace CleanArchitecture.Infrastructure.Services
             return response;
         }
 
-        public async Task<AuthenticationResponse> RefreshTokenAsync(string token, string ipAddress)
+        public async Task<RefreshTokenResponse> RefreshTokenAsync(RefreshTokenRequest request, string ipAddress)
         {
             // Instead of evaluating on client side with _userManager.Users.ToList(),
             // Ensure we only retrieve the user from the database whose refresh tokens match the passed token,
             // while actively including the RefreshTokens property.
             
-            var user = _userManager.Users.SingleOrDefault(u => u.RefreshTokens.Any(t => t.Token == token));
+            var user = _userManager.Users.SingleOrDefault(u => u.RefreshTokens.Any(t => t.Token == request.RefreshToken));
             
             if (user == null)
             {
                 throw new ApiException("Invalid or expired refresh token.");
             }
 
-            var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
+            var refreshToken = user.RefreshTokens.Single(x => x.Token == request.RefreshToken);
 
             if (!refreshToken.IsActive)
                  throw new ApiException("Token is no longer active");
@@ -109,29 +113,21 @@ namespace CleanArchitecture.Infrastructure.Services
             await _userManager.UpdateAsync(user);
 
             JwtSecurityToken jwtSecurityToken = await GenerateJWToken(user);
-            AuthenticationResponse response = new AuthenticationResponse
+            
+            return new RefreshTokenResponse
             {
-                Id = user.Id,
-                JWToken = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken),
-                Email = user.Email,
-                UserName = user.UserName,
-                IsVerified = user.EmailConfirmed
+                AccessToken = new JwtSecurityTokenHandler().WriteToken(jwtSecurityToken),
+                ExpiresIn = 3600
             };
-
-            var rolesList = await _userManager.GetRolesAsync(user).ConfigureAwait(false);
-            response.Roles = rolesList.ToList();
-
-            response.RefreshToken = newRefreshToken.Token;
-            return response;
         }
 
-        public async Task<bool> LogoutAsync(string token, string ipAddress)
+        public async Task<bool> LogoutAsync(LogoutRequest request, string ipAddress)
         {
-            var user = _userManager.Users.SingleOrDefault(u => u.RefreshTokens.Any(t => t.Token == token));
+            var user = _userManager.Users.SingleOrDefault(u => u.RefreshTokens.Any(t => t.Token == request.RefreshToken));
             
             if (user == null) return false;
 
-            var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
+            var refreshToken = user.RefreshTokens.Single(x => x.Token == request.RefreshToken);
 
             if (!refreshToken.IsActive)
                  throw new ApiException("Token is no longer active");
@@ -143,19 +139,15 @@ namespace CleanArchitecture.Infrastructure.Services
             return true;
         }
 
-        public async Task<string> RegisterAsync(RegisterRequest request, string origin)
+        public async Task<RegisterResponse> RegisterAsync(RegisterRequest request, string origin)
         {
-            var userWithSameUserName = await _userManager.FindByNameAsync(request.UserName);
-            if (userWithSameUserName != null)
-            {
-                throw new ApiException($"Username '{request.UserName}' is already taken.");
-            }
             var user = new ApplicationUser
             {
                 Email = request.Email,
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                UserName = request.UserName
+                FirstName = request.Name,
+                LastName = request.Surname,
+                UserName = request.Email, // Using email as username for simplicity or as desired
+                PhoneNumber = request.PhoneNumber
             };
             var userWithSameEmail = await _userManager.FindByEmailAsync(request.Email);
             if (userWithSameEmail == null)
@@ -164,14 +156,19 @@ namespace CleanArchitecture.Infrastructure.Services
                 if (result.Succeeded)
                 {
                     await _userManager.AddToRoleAsync(user, Roles.Customer.ToString());
-                    var verificationUri = await SendVerificationEmail(user, origin);
-                    //TODO: Attach Email Service here and configure it via appsettings
-                    //await _emailService.SendAsync(new Core.DTOs.Email.EmailRequest() { From = "mail@codewithmukesh.com", To = user.Email, Body = $"Please confirm your account by visiting this URL {verificationUri}", Subject = "Confirm Registration" });
-                    return  $"User Registered. Please confirm your account by visiting this URL {verificationUri}";
+                    // Skip verification for now as per simple register response requirement
+                    // var verificationUri = await SendVerificationEmail(user, origin);
+                    
+                    return new RegisterResponse
+                    {
+                        Message = "User registered successfully",
+                        UserId = user.Id
+                    };
                 }
                 else
                 {
-                    throw new ApiException($"{result.Errors}");
+                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                    throw new ApiException($"{errors}");
                 }
             }
             else
@@ -298,6 +295,45 @@ namespace CleanArchitecture.Infrastructure.Services
             {
                 throw new ApiException($"Error occured while reseting the password.");
             }
+        }
+
+        public async Task<bool> ChangePasswordAsync(string userId, ChangePasswordRequest request)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new ApiException("User not found.");
+
+            var result = await _userManager.ChangePasswordAsync(user, request.OldPassword, request.NewPassword);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new ApiException(errors);
+            }
+            return true;
+        }
+
+        public async Task<bool> UpdateProfileAsync(string userId, UpdateProfileRequest request)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new ApiException("User not found.");
+
+            user.FirstName = request.Name ?? user.FirstName;
+            user.LastName = request.Surname ?? user.LastName;
+            user.PhoneNumber = request.PhoneNumber ?? user.PhoneNumber;
+
+            var result = await _userManager.UpdateAsync(user);
+            return result.Succeeded;
+        }
+
+        public async Task<bool> DeleteAccountAsync(string userId, DeleteAccountRequest request)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new ApiException("User not found.");
+
+            var checkPassword = await _userManager.CheckPasswordAsync(user, request.Password);
+            if (!checkPassword) throw new ApiException("Invalid password.");
+
+            var result = await _userManager.DeleteAsync(user);
+            return result.Succeeded;
         }
     }
 }
