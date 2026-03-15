@@ -51,6 +51,7 @@ namespace CleanArchitecture.WebApi.Middlewares
                     default:
                         // unhandled error
                         response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                        errorResponse.Message = error.Message;
                         break;
                 }
                 var result = JsonSerializer.Serialize(errorResponse);

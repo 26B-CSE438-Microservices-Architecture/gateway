@@ -22,12 +22,6 @@ namespace CleanArchitecture.WebApi.Extensions
                     Version = "v1",
                     Title = "Clean Architecture - CleanArchitecture.WebApi",
                     Description = "This Api will be responsible for overall data distribution and authorization.",
-                    Contact = new OpenApiContact
-                    {
-                        Name = "codewithmukesh",
-                        Email = "hello@codewithmukesh.com",
-                        Url = new Uri("https://codewithmukesh.com/contact"),
-                    }
                 });
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {

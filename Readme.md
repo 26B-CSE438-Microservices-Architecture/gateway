@@ -64,23 +64,37 @@ The Auth service manages a dedicated PostgreSQL database to handle user identiti
 
 ## API Interfaces & Endpoints
 
-### 1. Authentication Service (Local)
+### 1. Authentication Service - `api/v1/auth`
 | Method | Endpoint | Description | Auth |
 | :--- | :--- | :--- | :--- |
-| POST | `/api/auth/register` | Register a new user | Public |
-| POST | `/api/auth/login` | Returns JWT and Refresh Token | Public |
-| POST | `/api/auth/refresh` | Generates new JWT via Refresh Token | Public |
-| POST | `/api/auth/logout` | Revokes the current Refresh Token | JWT Required |
+| POST | `/login` | Authenticates user via Email/Password, returns JWT and Refresh Token. | Public |
+| POST | `/register` | Creates a new user account (Default role: `Customer`). | Public |
+| POST | `/refresh-token` | Refreshes an expired Access Token using a valid Refresh Token. | Public |
+| POST | `/logout` | Revokes the current Refresh Token and logs the user out. | Public |
+| POST | `/forgot-password` | Sends a password reset code to the user's email. | Public |
+| POST | `/reset-password` | Resets the password using the received code. | Public |
+| GET | `/confirm-email` | Completes the email verification process. | Public |
+| POST | `/change-password`| Changes the password for the currently authenticated user. | JWT Required |
+| PUT | `/profile` | Updates user profile details. | JWT Required |
+| DELETE| `/account` | Permanently deletes the user account and all associated tokens. | JWT Required |
 
-### 2. Gateway Proxied Interfaces (YARP)
-The Gateway transforms and forwards requests to the following internal interfaces:
-
-| Source Path | Target Service | Required Role |
+### 2. Infrastructure & Monitoring Endpoints
+| Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `/api/order/**` | Order Service | Customer / Courier |
-| `/api/restaurant/**` | Restaurant Service | Public (Get) / Admin (Post) |
-| `/api/payment/**` | Payment Service | Customer |
-| `/api/user/profile` | User Service | Authenticated |
+| GET | `/health` | Reports overall service and database health status (Internal check). |
+| GET | `/swagger` | Central UI for exploring local API endpoints and proxied microservices. |
+
+### 3. Gateway Proxied Interfaces (YARP)
+The Gateway acts as a reverse proxy, stripping the `/api` prefix and injecting verified identity headers:
+* `X-User-Id`: Extracted from the `uid` claim.
+* `X-User-Role`: Extracted from the `roles` claim (e.g., Customer, Courier).
+
+| Source Path | Target Service | Logic / Responsibility |
+| :--- | :--- | :--- |
+| `/api/order/**` | Order Service | Order placement and tracking |
+| `/api/restaurant/**` | Restaurant Service | Menu browsing and management |
+| `/api/payment/**` | Payment Service | Payment processing |
+| `/api/user/**` | User Service | User profile management |
 
 ---
 

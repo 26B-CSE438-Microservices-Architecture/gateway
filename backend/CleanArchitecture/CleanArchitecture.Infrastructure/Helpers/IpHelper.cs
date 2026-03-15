@@ -7,6 +7,8 @@ namespace CleanArchitecture.Infrastructure.Helpers
     {
         public static string GetIpAddress()
         {
+            try
+            {
                 var host = Dns.GetHostEntry(Dns.GetHostName());
                 foreach (var ip in host.AddressList)
                 {
@@ -15,7 +17,12 @@ namespace CleanArchitecture.Infrastructure.Helpers
                         return ip.ToString();
                     }
                 }
-            return string.Empty;
+            }
+            catch
+            {
+                return "127.0.0.1";
+            }
+            return "127.0.0.1";
         }
     }
 }

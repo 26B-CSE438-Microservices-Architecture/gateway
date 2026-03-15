@@ -5,10 +5,12 @@ using CleanArchitecture.Core.Exceptions;
 using CleanArchitecture.Core.Interfaces;
 using CleanArchitecture.Core.Settings;
 using CleanArchitecture.Core.Wrappers;
+using CleanArchitecture.Infrastructure.Contexts;
 using CleanArchitecture.Infrastructure.Helpers;
 using CleanArchitecture.Infrastructure.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -30,12 +32,14 @@ namespace CleanArchitecture.Infrastructure.Services
         private readonly IEmailService _emailService;
         private readonly JWTSettings _jwtSettings;
         private readonly IDateTimeService _dateTimeService;
+        private readonly ApplicationDbContext _dbContext;
         public AccountService(UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             IOptions<JWTSettings> jwtSettings,
             IDateTimeService dateTimeService,
             SignInManager<ApplicationUser> signInManager,
-            IEmailService emailService)
+            IEmailService emailService,
+            ApplicationDbContext dbContext)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -43,11 +47,12 @@ namespace CleanArchitecture.Infrastructure.Services
             _dateTimeService = dateTimeService;
             _signInManager = signInManager;
             this._emailService = emailService;
+            _dbContext = dbContext;
         }
 
         public async Task<AuthenticationResponse> LoginAsync(AuthenticationRequest request, string ipAddress)
         {
-            var user = await _userManager.FindByEmailAsync(request.Email);
+            var user = await _userManager.Users.Include(u => u.RefreshTokens).SingleOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
                 throw new ApiException($"No Accounts Registered with {request.Email}.");
@@ -87,11 +92,7 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public async Task<RefreshTokenResponse> RefreshTokenAsync(RefreshTokenRequest request, string ipAddress)
         {
-            // Instead of evaluating on client side with _userManager.Users.ToList(),
-            // Ensure we only retrieve the user from the database whose refresh tokens match the passed token,
-            // while actively including the RefreshTokens property.
-            
-            var user = _userManager.Users.SingleOrDefault(u => u.RefreshTokens.Any(t => t.Token == request.RefreshToken));
+            var user = await _userManager.Users.Include(u => u.RefreshTokens).SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == request.RefreshToken));
             
             if (user == null)
             {
@@ -123,7 +124,7 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public async Task<bool> LogoutAsync(LogoutRequest request, string ipAddress)
         {
-            var user = _userManager.Users.SingleOrDefault(u => u.RefreshTokens.Any(t => t.Token == request.RefreshToken));
+            var user = await _userManager.Users.Include(u => u.RefreshTokens).SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == request.RefreshToken));
             
             if (user == null) return false;
 
@@ -216,11 +217,10 @@ namespace CleanArchitecture.Infrastructure.Services
 
         private string RandomTokenString()
         {
-            using var rngCryptoServiceProvider = new RNGCryptoServiceProvider();
-            var randomBytes = new byte[40];
-            rngCryptoServiceProvider.GetBytes(randomBytes);
+            var randomNumber = new byte[32];
+            RandomNumberGenerator.Fill(randomNumber);
             // convert random bytes to hex string
-            return BitConverter.ToString(randomBytes).Replace("-", "");
+            return BitConverter.ToString(randomNumber).Replace("-", "");
         }
 
         private async Task<string> SendVerificationEmail(ApplicationUser user, string origin)
@@ -331,6 +331,10 @@ namespace CleanArchitecture.Infrastructure.Services
 
             var checkPassword = await _userManager.CheckPasswordAsync(user, request.Password);
             if (!checkPassword) throw new ApiException("Invalid password.");
+
+            // Directly delete related RefreshTokens using DbContext to ensure they are gone
+            // Using ExecuteDeleteAsync for better performance and to bypass navigation property issues
+            await _dbContext.Set<RefreshToken>().Where(x => EF.Property<string>(x, "ApplicationUserId") == userId).ExecuteDeleteAsync();
 
             var result = await _userManager.DeleteAsync(user);
             return result.Succeeded;

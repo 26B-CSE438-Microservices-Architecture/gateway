@@ -29,7 +29,9 @@ builder.Services.AddPersistenceInfrastructure(builder.Configuration);
 builder.Services.AddSwaggerExtension();
 builder.Services.AddControllers();
 builder.Services.AddApiVersioningExtension();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection"), name: "PostgreSQL")
+    .AddRedis(builder.Configuration.GetConnectionString("RedisConnection") ?? "localhost:6379,abortConnect=false", name: "Redis");
 builder.Services.AddScoped<IAuthenticatedUserService, AuthenticatedUserService>();
 
 builder.Services.AddGrpc();
@@ -66,6 +68,8 @@ else
 }
 app.UseHttpsRedirection();
 
+app.UseErrorHandlingMiddleware();
+
 app.UseRouting();
 
 var frontendOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:3000" };
@@ -74,15 +78,16 @@ app.UseCors(options => options.WithOrigins(frontendOrigins).AllowAnyHeader().All
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseSwaggerExtension();
-app.UseErrorHandlingMiddleware();
-app.UseHealthChecks("/health");
-
-app.UseEndpoints(endpoints =>
+app.UseHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    endpoints.MapControllers();
-    endpoints.MapGrpcService<AuthGrpcService>();
-    endpoints.MapReverseProxy();
+    ResponseWriter = HealthChecks.UI.Client.UIResponseWriter.WriteHealthCheckUIResponse
 });
+
+app.MapGet("/", () => "Navigate to /swagger to see the API documentation.\nNavigate to /health to see the health status of the application.");
+
+app.MapControllers();
+app.MapGrpcService<AuthGrpcService>();
+app.MapReverseProxy();
 
 
 //Initialize Logger
