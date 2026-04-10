@@ -12,6 +12,7 @@ namespace CleanArchitecture.WebApi.Middlewares
     public class ErrorHandlerMiddleware
     {
         private readonly RequestDelegate _next;
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         public ErrorHandlerMiddleware(RequestDelegate next)
         {
@@ -28,34 +29,38 @@ namespace CleanArchitecture.WebApi.Middlewares
             {
                 var response = context.Response;
                 response.ContentType = "application/json";
-                var errorResponse = new ErrorResponse();
 
+                StandardErrorResponse errorResponse;
 
                 switch (error)
                 {
+                    case NotFoundException e:
+                        response.StatusCode = (int)HttpStatusCode.NotFound;
+                        errorResponse = StandardErrorResponse.Create(e.ErrorCode, e.Message, (int)HttpStatusCode.NotFound);
+                        break;
                     case Core.Exceptions.ApiException e:
-                        // custom application error
                         response.StatusCode = (int)HttpStatusCode.BadRequest;
-                        errorResponse.Message = e.Message;
+                        errorResponse = StandardErrorResponse.Create("BAD_REQUEST", e.Message, (int)HttpStatusCode.BadRequest);
                         break;
                     case ValidationException e:
-                        // custom application error
                         response.StatusCode = (int)HttpStatusCode.BadRequest;
-                        errorResponse.Message ="Some validation errors occured.";
-                        errorResponse.Errors = e.Errors;
+                        errorResponse = StandardErrorResponse.Create("VALIDATION_ERROR", "Some validation errors occurred.", (int)HttpStatusCode.BadRequest);
                         break;
                     case KeyNotFoundException e:
-                        // not found error
                         response.StatusCode = (int)HttpStatusCode.NotFound;
+                        errorResponse = StandardErrorResponse.Create("NOT_FOUND", e.Message ?? "Resource not found", (int)HttpStatusCode.NotFound);
+                        break;
+                    case UnauthorizedAccessException e:
+                        response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                        errorResponse = StandardErrorResponse.Create("UNAUTHORIZED", "You are not authorized.", (int)HttpStatusCode.Unauthorized);
                         break;
                     default:
-                        // unhandled error
                         response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                        errorResponse.Message = error.Message;
+                        errorResponse = StandardErrorResponse.Create("INTERNAL_SERVER_ERROR", "An unexpected error occurred.", (int)HttpStatusCode.InternalServerError);
                         break;
                 }
-                var result = JsonSerializer.Serialize(errorResponse);
 
+                var result = JsonSerializer.Serialize(errorResponse, _jsonOptions);
                 await response.WriteAsync(result);
             }
         }
