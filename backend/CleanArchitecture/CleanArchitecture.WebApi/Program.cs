@@ -2,6 +2,7 @@ using CleanArchitecture.Core;
 using CleanArchitecture.Core.Interfaces;
 using CleanArchitecture.Infrastructure;
 using CleanArchitecture.Infrastructure.Models;
+using Microsoft.EntityFrameworkCore;
 using CleanArchitecture.WebApi.Extensions;
 using CleanArchitecture.WebApi.Grpc;
 using CleanArchitecture.WebApi.Middlewares;
@@ -22,6 +23,7 @@ var builder = WebApplication.CreateBuilder(args);
 //Add configurations
 builder.Configuration.AddJsonFile("appsettings.json");
 builder.Configuration.AddJsonFile("appsettings.Development.json", optional: true);
+builder.Configuration.AddEnvironmentVariables();
 
 // Add services to the container.
 builder.Services.AddApplicationLayer();
@@ -103,6 +105,12 @@ using (var scope = app.Services.CreateScope())
     var loggerFactory = services.GetRequiredService<ILoggerFactory>();
     try
     {
+        var context = services.GetRequiredService<CleanArchitecture.Infrastructure.Contexts.ApplicationDbContext>();
+        if (context.Database.IsRelational())
+        {
+            await context.Database.MigrateAsync();
+        }
+
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
 

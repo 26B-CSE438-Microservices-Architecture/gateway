@@ -1,4 +1,4 @@
-﻿using CleanArchitecture.Core.DTOs.Account;
+using CleanArchitecture.Core.DTOs.Account;
 using CleanArchitecture.Core.DTOs.Email;
 using CleanArchitecture.Core.Enums;
 using CleanArchitecture.Core.Exceptions;
@@ -148,7 +148,8 @@ namespace CleanArchitecture.Infrastructure.Services
                 FirstName = request.Name,
                 LastName = request.Surname,
                 UserName = request.Email, // Using email as username for simplicity or as desired
-                PhoneNumber = request.PhoneNumber
+                PhoneNumber = request.PhoneNumber,
+                EmailConfirmed = true
             };
             var userWithSameEmail = await _userManager.FindByEmailAsync(request.Email);
             if (userWithSameEmail == null)
