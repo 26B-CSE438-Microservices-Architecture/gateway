@@ -1,8 +1,10 @@
-﻿using CleanArchitecture.Core.DTOs.Account;
+using CleanArchitecture.Core.DTOs.Account;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -94,12 +96,80 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _accountService.ResetPassword(model));
         }
 
+        /// <summary>
+        /// Returns the current authenticated user's profile extracted from the JWT token.
+        /// </summary>
+        [Authorize]
+        [HttpGet("me")]
+        public IActionResult GetCurrentUser()
+        {
+            var userId = User.FindFirstValue("uid");
+            var email = User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email);
+            var roles = User.FindAll("roles").Select(c => c.Value).ToList();
+
+            return Ok(new
+            {
+                id = userId,
+                email = email,
+                roles = roles
+            });
+        }
+
+        /// <summary>
+        /// Validates a JWT token via REST. Returns validity status, user id and roles.
+        /// </summary>
+        [HttpPost("verify-token")]
+        public IActionResult VerifyToken([FromBody] VerifyTokenRequest request)
+        {
+            if (string.IsNullOrEmpty(request?.Token))
+                return BadRequest(new { error = "INVALID_REQUEST", message = "Token is required." });
+
+            try
+            {
+                var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                var key = System.Text.Encoding.UTF8.GetBytes(
+                    HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CleanArchitecture.Core.Settings.JWTSettings>>().Value.Key);
+
+                tokenHandler.ValidateToken(request.Token, new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidIssuer = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CleanArchitecture.Core.Settings.JWTSettings>>().Value.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CleanArchitecture.Core.Settings.JWTSettings>>().Value.Audience,
+                    ValidateLifetime = true,
+                    ClockSkew = System.TimeSpan.Zero
+                }, out var validatedToken);
+
+                var jwtToken = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
+                var uid = jwtToken.Claims.FirstOrDefault(x => x.Type == "uid")?.Value;
+                var roles = jwtToken.Claims.Where(x => x.Type == "roles").Select(x => x.Value).ToList();
+
+                return Ok(new
+                {
+                    is_valid = true,
+                    user_id = uid,
+                    roles = roles
+                });
+            }
+            catch
+            {
+                return Ok(new
+                {
+                    is_valid = false,
+                    user_id = (string)null,
+                    roles = new List<string>()
+                });
+            }
+        }
+
         private string GenerateIPAddress()
         {
             if (Request.Headers.ContainsKey("X-Forwarded-For"))
                 return Request.Headers["X-Forwarded-For"];
             else
-                return HttpContext.Connection.RemoteIpAddress.MapToIPv4().ToString();
+                return HttpContext.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
         }
     }
-}
+}

@@ -17,6 +17,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using System;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +27,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.json");
 builder.Configuration.AddJsonFile("appsettings.Development.json", optional: true);
 builder.Configuration.AddEnvironmentVariables();
+
+//Initialize Logger early so all startup logs are captured
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .CreateLogger();
+builder.Host.UseSerilog();
 
 // Add services to the container.
 builder.Services.AddApplicationLayer();
@@ -35,6 +44,29 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection"), name: "PostgreSQL")
     .AddRedis(builder.Configuration.GetConnectionString("RedisConnection") ?? "localhost:6379,abortConnect=false", name: "Redis");
 builder.Services.AddScoped<IAuthenticatedUserService, AuthenticatedUserService>();
+
+// Rate Limiting — IP tabanlı, dakikada 100 istek limiti
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddFixedWindowLimiter("fixed", opt =>
+    {
+        opt.PermitLimit = 100;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 5;
+    });
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        Log.Warning("Rate limit exceeded for IP: {IpAddress}, Path: {Path}",
+            context.HttpContext.Connection.RemoteIpAddress,
+            context.HttpContext.Request.Path);
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"error\":\"TOO_MANY_REQUESTS\",\"message\":\"Rate limit exceeded. Please try again later.\"}",
+            cancellationToken);
+    };
+});
 
 builder.Services.AddGrpc();
 builder.Services.AddReverseProxy()
@@ -73,6 +105,7 @@ app.UseHttpsRedirection();
 app.UseErrorHandlingMiddleware();
 
 app.UseRouting();
+app.UseRateLimiter();
 
 var frontendOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:3000" };
 app.UseCors(options => options.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod());
@@ -92,11 +125,6 @@ app.MapGrpcService<AuthGrpcService>();
 app.MapReverseProxy();
 
 
-//Initialize Logger
-
-Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(app.Configuration)
-                .CreateLogger();
 
 //Seed Default Data
 using (var scope = app.Services.CreateScope())
@@ -132,3 +160,6 @@ using (var scope = app.Services.CreateScope())
 
 //Start the application
 app.Run();
+
+// Required for WebApplicationFactory in integration tests
+public partial class Program { }

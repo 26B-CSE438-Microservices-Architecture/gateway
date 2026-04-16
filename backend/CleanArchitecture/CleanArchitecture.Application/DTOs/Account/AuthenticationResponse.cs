@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace CleanArchitecture.Core.DTOs.Account
@@ -75,5 +75,10 @@ namespace CleanArchitecture.Core.DTOs.Account
     public class DeleteAccountRequest
     {
         public string Password { get; set; }
+    }
+
+    public class VerifyTokenRequest
+    {
+        public string Token { get; set; }
     }
 }

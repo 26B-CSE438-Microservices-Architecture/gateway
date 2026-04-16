@@ -15,7 +15,6 @@ namespace CleanArchitecture.Core.DTOs.Account
         [EmailAddress]
         public string Email { get; set; }
 
-        [Required]
         [JsonPropertyName("phone_number")]
         public string PhoneNumber { get; set; }
 

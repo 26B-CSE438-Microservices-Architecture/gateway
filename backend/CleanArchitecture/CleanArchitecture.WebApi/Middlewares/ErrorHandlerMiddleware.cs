@@ -1,4 +1,4 @@
-﻿using CleanArchitecture.Core.Exceptions;
+using CleanArchitecture.Core.Exceptions;
 using CleanArchitecture.Core.Wrappers;
 using Microsoft.AspNetCore.Http;
 using System;
@@ -56,7 +56,7 @@ namespace CleanArchitecture.WebApi.Middlewares
                         break;
                     default:
                         response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                        errorResponse = StandardErrorResponse.Create("INTERNAL_SERVER_ERROR", "An unexpected error occurred.", (int)HttpStatusCode.InternalServerError);
+                        errorResponse = StandardErrorResponse.Create("INTERNAL_SERVER_ERROR", error.ToString(), (int)HttpStatusCode.InternalServerError);
                         break;
                 }
 

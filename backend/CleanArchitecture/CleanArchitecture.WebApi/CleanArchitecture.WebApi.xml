@@ -4,6 +4,26 @@
         <name>CleanArchitecture.WebApi</name>
     </assembly>
     <members>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.GetAllUsers(System.Int32,System.Int32)">
+            <summary>
+            Lists all registered users with pagination. SysAdmin only.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.AssignRole(System.String,CleanArchitecture.Core.DTOs.Admin.AssignRoleRequest)">
+            <summary>
+            Assigns a role to a specific user. SysAdmin only.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.GetCurrentUser">
+            <summary>
+            Returns the current authenticated user's profile extracted from the JWT token.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.VerifyToken(CleanArchitecture.Core.DTOs.Account.VerifyTokenRequest)">
+            <summary>
+            Validates a JWT token via REST. Returns validity status, user id and roles.
+            </summary>
+        </member>
         <member name="T:CleanArchitecture.WebApi.Grpc.AuthReflection">
             <summary>Holder for reflection information generated from Protos/auth.proto</summary>
         </member>
