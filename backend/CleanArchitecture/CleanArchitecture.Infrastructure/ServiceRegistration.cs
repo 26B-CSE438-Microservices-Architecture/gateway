@@ -23,8 +23,10 @@ namespace CleanArchitecture.Infrastructure
         {
             if (configuration.GetValue<bool>("UseInMemoryDatabase"))
             {
+                // Keep the InMemory database name configurable so tests can isolate data per host and avoid cross-test collisions.
+                var inMemoryDatabaseName = configuration["InMemoryDatabaseName"] ?? "ApplicationDb";
                 services.AddDbContext<ApplicationDbContext>(options =>
-                    options.UseInMemoryDatabase("ApplicationDb"));
+                    options.UseInMemoryDatabase(inMemoryDatabaseName));
             }
             else
             {

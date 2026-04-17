@@ -127,34 +127,37 @@ app.MapReverseProxy();
 
 
 //Seed Default Data
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    var services = scope.ServiceProvider;
-    var loggerFactory = services.GetRequiredService<ILoggerFactory>();
-    try
+    using (var scope = app.Services.CreateScope())
     {
-        var context = services.GetRequiredService<CleanArchitecture.Infrastructure.Contexts.ApplicationDbContext>();
-        if (context.Database.IsRelational())
+        var services = scope.ServiceProvider;
+        var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+        try
         {
-            await context.Database.MigrateAsync();
+            var context = services.GetRequiredService<CleanArchitecture.Infrastructure.Contexts.ApplicationDbContext>();
+            if (context.Database.IsRelational())
+            {
+                await context.Database.MigrateAsync();
+            }
+
+            var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+
+            await CleanArchitecture.Infrastructure.Seeds.DefaultRoles.SeedAsync(userManager, roleManager);
+            await CleanArchitecture.Infrastructure.Seeds.DefaultSuperAdmin.SeedAsync(userManager, roleManager);
+            await CleanArchitecture.Infrastructure.Seeds.DefaultBasicUser.SeedAsync(userManager, roleManager);
+            Log.Information("Finished Seeding Default Data");
+            Log.Information("Application Starting");
         }
-
-        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-
-        await CleanArchitecture.Infrastructure.Seeds.DefaultRoles.SeedAsync(userManager, roleManager);
-        await CleanArchitecture.Infrastructure.Seeds.DefaultSuperAdmin.SeedAsync(userManager, roleManager);
-        await CleanArchitecture.Infrastructure.Seeds.DefaultBasicUser.SeedAsync(userManager, roleManager);
-        Log.Information("Finished Seeding Default Data");
-        Log.Information("Application Starting");
-    }
-    catch (Exception ex)
-    {
-        Log.Warning(ex, "An error occurred seeding the DB");
-    }
-    finally
-    {
-        Log.CloseAndFlush();
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "An error occurred seeding the DB");
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+        }
     }
 }
 
