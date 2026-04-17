@@ -19,7 +19,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 Rating = 4.7,
                 ReviewCount = 1280,
                 DistanceKm = 2.4,
-                CampaignBadges = new List<string> { "30 TL indirim", "Ücretsiz teslimat" },
+                CampaignBadges = new List<string> { "30 TL indirim", "ï¿½cretsiz teslimat" },
                 WorkingHours = new WorkingHoursDto { Open = "10:00", Close = "02:00", IsOpen = true },
                 DeliveryInfo = new DeliveryInfoDto { EtaRange = "20-30 dk", MinimumBasketAmount = 180, DeliveryFee = 24.9 },
                 MenuSections = new List<MenuSectionDto>
@@ -27,16 +27,16 @@ namespace CleanArchitecture.Infrastructure.Services
                     new MenuSectionDto
                     {
                         Id = "section_1",
-                        Title = "Burger Menüler",
+                        Title = "Burger Menï¿½ler",
                         Products = new List<ProductDto>
                         {
                             new ProductDto
                             {
                                 Id = "prod_1",
                                 Name = "Double Smash Burger",
-                                Description = "Çift köfte cheddar peynir",
+                                Description = "ï¿½ift kï¿½fte cheddar peynir",
                                 Price = 210,
-                                Badge = "En Çok Satan",
+                                Badge = "En ï¿½ok Satan",
                                 ImageUrl = "https://cdn.app.com/burger.png",
                                 IsAvailable = true,
                                 Allergens = new List<string> { "gluten", "dairy" },
@@ -46,7 +46,7 @@ namespace CleanArchitecture.Infrastructure.Services
                                     new OptionGroupDto
                                     {
                                         Id = "drink",
-                                        Title = "Ýçecek Seçimi",
+                                        Title = "ï¿½ï¿½ecek Seï¿½imi",
                                         IsRequired = true,
                                         MaxSelections = 1,
                                         Options = new List<OptionItemDto>
@@ -61,7 +61,7 @@ namespace CleanArchitecture.Infrastructure.Services
                             {
                                 Id = "prod_2",
                                 Name = "Classic Burger",
-                                Description = "Klasik burger, marul, domates, özel sos",
+                                Description = "Klasik burger, marul, domates, ï¿½zel sos",
                                 Price = 160,
                                 Badge = null,
                                 ImageUrl = "https://cdn.app.com/classic.png",
@@ -81,8 +81,8 @@ namespace CleanArchitecture.Infrastructure.Services
                             new ProductDto
                             {
                                 Id = "prod_3",
-                                Name = "Patates Kýzartmasý",
-                                Description = "Çýtýr patates",
+                                Name = "Patates Kï¿½zartmasï¿½",
+                                Description = "ï¿½ï¿½tï¿½r patates",
                                 Price = 60,
                                 Badge = null,
                                 ImageUrl = "https://cdn.app.com/fries.png",
@@ -103,7 +103,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 Rating = 4.5,
                 ReviewCount = 980,
                 DistanceKm = 1.8,
-                CampaignBadges = new List<string> { "Ýlk sipariþe %20 indirim" },
+                CampaignBadges = new List<string> { "ï¿½lk sipariï¿½e %20 indirim" },
                 WorkingHours = new WorkingHoursDto { Open = "11:00", Close = "23:30", IsOpen = true },
                 DeliveryInfo = new DeliveryInfoDto { EtaRange = "25-35 dk", MinimumBasketAmount = 150, DeliveryFee = 19.9 },
                 MenuSections = new List<MenuSectionDto>
@@ -134,7 +134,7 @@ namespace CleanArchitecture.Infrastructure.Services
             new VendorDetailDto
             {
                 Id = "vendor_103",
-                Name = "Komagene Çið Köfte",
+                Name = "Komagene ï¿½iï¿½ Kï¿½fte",
                 Kind = "RESTAURANT",
                 Rating = 4.3,
                 ReviewCount = 560,
@@ -168,6 +168,174 @@ namespace CleanArchitecture.Infrastructure.Services
                 throw new NotFoundException("VENDOR_NOT_FOUND", "Vendor not found");
 
             return Task.FromResult(vendor);
+        }
+
+        public Task<PagedVendorsResponse> GetNearbyVendorsAsync(double lat, double lng, double radiusKm)
+        {
+            // Simple mock: return all vendors as they are nearby in mock
+            var data = _vendors.Select(v => (VendorSummaryDto)v).ToList();
+            return Task.FromResult(new PagedVendorsResponse
+            {
+                Page = 1,
+                Limit = data.Count,
+                Total = data.Count,
+                Data = data
+            });
+        }
+
+        public Task<string> CreateVendorAsync(CreateVendorDto request)
+        {
+            var id = $"vendor_{System.Guid.NewGuid():N}";
+            var vendor = new VendorDetailDto
+            {
+                Id = id,
+                Name = request.Name,
+                Description = request.Description,
+                AddressText = request.AddressText,
+                Latitude = request.Latitude,
+                Longitude = request.Longitude,
+                LogoUrl = request.LogoUrl,
+                Status = "Open",
+                DeliveryInfo = new DeliveryInfoDto { MinimumBasketAmount = request.MinOrderAmount, DeliveryFee = request.DeliveryFee, EtaRange = "20-30 dk" },
+                WorkingHours = new WorkingHoursDto { Open = request.OpeningTime, Close = request.ClosingTime, IsOpen = true },
+                MenuSections = new List<MenuSectionDto>()
+            };
+            _vendors.Add(vendor);
+            return Task.FromResult(id);
+        }
+
+        public Task<bool> UpdateVendorAsync(string vendorId, UpdateVendorDto request)
+        {
+            var vendor = _vendors.FirstOrDefault(v => v.Id == vendorId);
+            if (vendor == null) return Task.FromResult(false);
+
+            vendor.Name = request.Name ?? vendor.Name;
+            vendor.Description = request.Description ?? vendor.Description;
+            vendor.AddressText = request.AddressText ?? vendor.AddressText;
+            vendor.Latitude = request.Latitude ?? vendor.Latitude;
+            vendor.Longitude = request.Longitude ?? vendor.Longitude;
+            vendor.LogoUrl = request.LogoUrl ?? vendor.LogoUrl;
+            
+            if (request.MinOrderAmount.HasValue) vendor.DeliveryInfo.MinimumBasketAmount = request.MinOrderAmount.Value;
+            if (request.DeliveryFee.HasValue) vendor.DeliveryInfo.DeliveryFee = request.DeliveryFee.Value;
+
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> UpdateVendorStatusAsync(string vendorId, UpdateStatusDto request)
+        {
+            var vendor = _vendors.FirstOrDefault(v => v.Id == vendorId);
+            if (vendor == null) return Task.FromResult(false);
+
+            vendor.Status = request.Status;
+            vendor.WorkingHours.IsOpen = request.Status == "Open";
+
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> DeleteVendorAsync(string vendorId)
+        {
+            var vendor = _vendors.FirstOrDefault(v => v.Id == vendorId);
+            if (vendor == null) return Task.FromResult(false);
+            _vendors.Remove(vendor);
+            return Task.FromResult(true);
+        }
+
+        public Task<string> CreateCategoryAsync(string vendorId, CreateCategoryDto request)
+        {
+            var vendor = _vendors.FirstOrDefault(v => v.Id == vendorId);
+            if (vendor == null) throw new NotFoundException("VENDOR_NOT_FOUND", "Vendor not found");
+
+            var id = $"cat_{System.Guid.NewGuid():N}";
+            vendor.MenuSections.Add(new MenuSectionDto
+            {
+                Id = id,
+                Title = request.Name,
+                Products = new List<ProductDto>()
+            });
+
+            return Task.FromResult(id);
+        }
+
+        public Task<bool> UpdateCategoryAsync(string categoryId, UpdateCategoryDto request)
+        {
+            var category = _vendors.SelectMany(v => v.MenuSections).FirstOrDefault(c => c.Id == categoryId);
+            if (category == null) return Task.FromResult(false);
+
+            category.Title = request.Name ?? category.Title;
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> DeleteCategoryAsync(string categoryId)
+        {
+            foreach (var vendor in _vendors)
+            {
+                var category = vendor.MenuSections.FirstOrDefault(c => c.Id == categoryId);
+                if (category != null)
+                {
+                    vendor.MenuSections.Remove(category);
+                    return Task.FromResult(true);
+                }
+            }
+            return Task.FromResult(false);
+        }
+
+        public Task<string> CreateProductAsync(string categoryId, CreateProductDto request)
+        {
+            var category = _vendors.SelectMany(v => v.MenuSections).FirstOrDefault(c => c.Id == categoryId);
+            if (category == null) throw new NotFoundException("CATEGORY_NOT_FOUND", "Category not found");
+
+            var id = $"prod_{System.Guid.NewGuid():N}";
+            category.Products.Add(new ProductDto
+            {
+                Id = id,
+                Name = request.Name,
+                Description = request.Description,
+                Price = request.Price,
+                ImageUrl = request.ImageUrl,
+                IsAvailable = true
+            });
+
+            return Task.FromResult(id);
+        }
+
+        public Task<bool> UpdateProductAsync(string productId, UpdateProductDto request)
+        {
+            var product = _vendors.SelectMany(v => v.MenuSections).SelectMany(c => c.Products).FirstOrDefault(p => p.Id == productId);
+            if (product == null) return Task.FromResult(false);
+
+            product.Name = request.Name ?? product.Name;
+            product.Description = request.Description ?? product.Description;
+            if (request.Price.HasValue) product.Price = request.Price.Value;
+            product.ImageUrl = request.ImageUrl ?? product.ImageUrl;
+
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> UpdateProductStockAsync(string productId, UpdateStockDto request)
+        {
+            var product = _vendors.SelectMany(v => v.MenuSections).SelectMany(c => c.Products).FirstOrDefault(p => p.Id == productId);
+            if (product == null) return Task.FromResult(false);
+
+            product.IsAvailable = request.IsAvailable;
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> DeleteProductAsync(string productId)
+        {
+            foreach (var vendor in _vendors)
+            {
+                foreach (var category in vendor.MenuSections)
+                {
+                    var product = category.Products.FirstOrDefault(p => p.Id == productId);
+                    if (product != null)
+                    {
+                        category.Products.Remove(product);
+                        return Task.FromResult(true);
+                    }
+                }
+            }
+            return Task.FromResult(false);
         }
     }
 }

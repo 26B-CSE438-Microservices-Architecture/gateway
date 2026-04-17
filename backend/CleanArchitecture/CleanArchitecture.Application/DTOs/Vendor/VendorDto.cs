@@ -35,8 +35,146 @@ namespace CleanArchitecture.Core.DTOs.Vendor
 
     public class VendorDetailDto : VendorSummaryDto
     {
+        [JsonPropertyName("description")]
+        public string Description { get; set; }
+
+        [JsonPropertyName("address_text")]
+        public string AddressText { get; set; }
+
+        [JsonPropertyName("latitude")]
+        public double Latitude { get; set; }
+
+        [JsonPropertyName("longitude")]
+        public double Longitude { get; set; }
+
+        [JsonPropertyName("logo_url")]
+        public string LogoUrl { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } // Open, Closed, Busy
+
         [JsonPropertyName("menu_sections")]
         public List<MenuSectionDto> MenuSections { get; set; }
+    }
+
+    public class CreateVendorDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; }
+
+        [JsonPropertyName("address_text")]
+        public string AddressText { get; set; }
+
+        [JsonPropertyName("latitude")]
+        public double Latitude { get; set; }
+
+        [JsonPropertyName("longitude")]
+        public double Longitude { get; set; }
+
+        [JsonPropertyName("logo_url")]
+        public string LogoUrl { get; set; }
+
+        [JsonPropertyName("min_order_amount")]
+        public double MinOrderAmount { get; set; }
+
+        [JsonPropertyName("delivery_fee")]
+        public double DeliveryFee { get; set; }
+
+        [JsonPropertyName("opening_time")]
+        public string OpeningTime { get; set; }
+
+        [JsonPropertyName("closing_time")]
+        public string ClosingTime { get; set; }
+    }
+
+    public class UpdateVendorDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; }
+
+        [JsonPropertyName("address_text")]
+        public string AddressText { get; set; }
+
+        [JsonPropertyName("latitude")]
+        public double? Latitude { get; set; }
+
+        [JsonPropertyName("longitude")]
+        public double? Longitude { get; set; }
+
+        [JsonPropertyName("logo_url")]
+        public string LogoUrl { get; set; }
+
+        [JsonPropertyName("min_order_amount")]
+        public double? MinOrderAmount { get; set; }
+
+        [JsonPropertyName("delivery_fee")]
+        public double? DeliveryFee { get; set; }
+    }
+
+    public class UpdateStatusDto
+    {
+        [JsonPropertyName("status")]
+        public string Status { get; set; }
+    }
+
+    public class CreateCategoryDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("display_order")]
+        public int DisplayOrder { get; set; }
+    }
+
+    public class UpdateCategoryDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("display_order")]
+        public int? DisplayOrder { get; set; }
+    }
+
+    public class CreateProductDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; }
+
+        [JsonPropertyName("price")]
+        public double Price { get; set; }
+
+        [JsonPropertyName("image_url")]
+        public string ImageUrl { get; set; }
+    }
+
+    public class UpdateProductDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; }
+
+        [JsonPropertyName("price")]
+        public double? Price { get; set; }
+
+        [JsonPropertyName("image_url")]
+        public string ImageUrl { get; set; }
+    }
+
+    public class UpdateStockDto
+    {
+        [JsonPropertyName("is_available")]
+        public bool IsAvailable { get; set; }
     }
 
     public class WorkingHoursDto

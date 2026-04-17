@@ -1,3 +1,4 @@
+using CleanArchitecture.Core.DTOs.Vendor;
 using CleanArchitecture.Core.DTOs.Review;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -33,6 +34,88 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> GetVendor(string vendor_id)
         {
             return Ok(await _vendorService.GetVendorByIdAsync(vendor_id));
+        }
+
+        [HttpGet("nearby")]
+        public async Task<IActionResult> GetNearbyVendors([FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radius = 5.0)
+        {
+            return Ok(await _vendorService.GetNearbyVendorsAsync(lat, lng, radius));
+        }
+
+        [HttpGet("{vendor_id}/menu")]
+        public async Task<IActionResult> GetVendorMenu(string vendor_id)
+        {
+            var vendor = await _vendorService.GetVendorByIdAsync(vendor_id);
+            return Ok(vendor.MenuSections);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateVendor([FromBody] CreateVendorDto request)
+        {
+            var id = await _vendorService.CreateVendorAsync(request);
+            return CreatedAtAction(nameof(GetVendor), new { vendor_id = id }, new { id });
+        }
+
+        [HttpPut("{vendor_id}")]
+        public async Task<IActionResult> UpdateVendor(string vendor_id, [FromBody] UpdateVendorDto request)
+        {
+            return Ok(await _vendorService.UpdateVendorAsync(vendor_id, request));
+        }
+
+        [HttpPatch("{vendor_id}/status")]
+        public async Task<IActionResult> UpdateVendorStatus(string vendor_id, [FromBody] UpdateStatusDto request)
+        {
+            return Ok(await _vendorService.UpdateVendorStatusAsync(vendor_id, request));
+        }
+
+        [HttpDelete("{vendor_id}")]
+        public async Task<IActionResult> DeleteVendor(string vendor_id)
+        {
+            return Ok(await _vendorService.DeleteVendorAsync(vendor_id));
+        }
+
+        [HttpPost("{vendor_id}/categories")]
+        public async Task<IActionResult> CreateCategory(string vendor_id, [FromBody] CreateCategoryDto request)
+        {
+            var id = await _vendorService.CreateCategoryAsync(vendor_id, request);
+            return Ok(new { id });
+        }
+
+        [HttpPut("/api/v1/categories/{id}")]
+        public async Task<IActionResult> UpdateCategory(string id, [FromBody] UpdateCategoryDto request)
+        {
+            return Ok(await _vendorService.UpdateCategoryAsync(id, request));
+        }
+
+        [HttpDelete("/api/v1/categories/{id}")]
+        public async Task<IActionResult> DeleteCategory(string id)
+        {
+            return Ok(await _vendorService.DeleteCategoryAsync(id));
+        }
+
+        [HttpPost("/api/v1/categories/{categoryId}/products")]
+        public async Task<IActionResult> CreateProduct(string categoryId, [FromBody] CreateProductDto request)
+        {
+            var id = await _vendorService.CreateProductAsync(categoryId, request);
+            return Ok(new { id });
+        }
+
+        [HttpPut("/api/v1/products/{id}")]
+        public async Task<IActionResult> UpdateProduct(string id, [FromBody] UpdateProductDto request)
+        {
+            return Ok(await _vendorService.UpdateProductAsync(id, request));
+        }
+
+        [HttpPatch("/api/v1/products/{id}/stock")]
+        public async Task<IActionResult> UpdateProductStock(string id, [FromBody] UpdateStockDto request)
+        {
+            return Ok(await _vendorService.UpdateProductStockAsync(id, request));
+        }
+
+        [HttpDelete("/api/v1/products/{id}")]
+        public async Task<IActionResult> DeleteProduct(string id)
+        {
+            return Ok(await _vendorService.DeleteProductAsync(id));
         }
 
         [HttpGet("{vendor_id}/reviews")]
