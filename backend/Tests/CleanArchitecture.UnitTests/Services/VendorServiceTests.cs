@@ -1,4 +1,8 @@
+// Disable Dereference of a possibly null reference warning for this test file
+// CS8602: Dereference of a possibly null reference.
+#pragma warning disable CS8602
 using CleanArchitecture.Core.DTOs.Vendor;
+
 using CleanArchitecture.Core.Exceptions;
 using CleanArchitecture.Infrastructure.Services;
 using FluentAssertions;
