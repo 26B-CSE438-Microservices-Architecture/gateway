@@ -26,8 +26,8 @@ namespace CleanArchitecture.UnitTests.Grpc
             _settings = new JWTSettings
             {
                 Key = "5b1b4b12330f40d8924b22c7302409df5b1b4b12330f40d8924b22c7302409df",
-                Issuer = "TestIssuer",
-                Audience = "TestAudience",
+                Issuer = "Gateway.Auth.Service",
+                Audience = "Gateway.Clients",
                 DurationInMinutes = 60
             };
 
@@ -119,31 +119,44 @@ namespace CleanArchitecture.UnitTests.Grpc
 
         private string GenerateTestToken(string userId, string[] roles, int expiredMinutesAgo = 0)
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Key));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_settings.Key);
+            
             var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, "testuser"),
-                new Claim(JwtRegisteredClaimNames.Email, "test@example.com"),
                 new Claim("uid", userId)
             };
 
             foreach (var role in roles)
                 claims.Add(new Claim("roles", role));
 
-            var expires = expiredMinutesAgo > 0
-                ? DateTime.UtcNow.AddMinutes(-expiredMinutesAgo)
-                : DateTime.UtcNow.AddMinutes(_settings.DurationInMinutes);
+            DateTime now = DateTime.UtcNow;
+            DateTime expires;
+            DateTime? notBefore = null;
 
-            var token = new JwtSecurityToken(
-                issuer: _settings.Issuer,
-                audience: _settings.Audience,
-                claims: claims,
-                expires: expires,
-                signingCredentials: creds);
+            if (expiredMinutesAgo > 0)
+            {
+                expires = now.AddMinutes(-expiredMinutesAgo);
+                notBefore = expires.AddMinutes(-60); // Ensure notBefore is earlier than expires
+            }
+            else
+            {
+                expires = now.AddMinutes(_settings.DurationInMinutes);
+            }
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = expires,
+                NotBefore = notBefore,
+                Issuer = _settings.Issuer,
+                Audience = _settings.Audience,
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
         }
 
         private static ServerCallContext CreateMockServerCallContext()

@@ -1,5 +1,4 @@
 using System;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,7 +6,9 @@ using CleanArchitecture.Core.Settings;
 using Grpc.Core;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.JsonWebTokens;
 using System.Text;
+using System.Collections.Generic;
 
 namespace CleanArchitecture.WebApi.Grpc
 {
@@ -20,19 +21,19 @@ namespace CleanArchitecture.WebApi.Grpc
             _jwtSettings = jwtSettings.Value;
         }
 
-        public override Task<ValidateTokenResponse> ValidateToken(ValidateTokenRequest request, ServerCallContext context)
+        public override async Task<ValidateTokenResponse> ValidateToken(ValidateTokenRequest request, ServerCallContext context)
         {
             var response = new ValidateTokenResponse { IsValid = false };
 
             if (string.IsNullOrEmpty(request.Token))
-                return Task.FromResult(response);
+                return response;
 
             try
             {
-                var tokenHandler = new JwtSecurityTokenHandler();
+                var tokenHandler = new JsonWebTokenHandler();
                 var key = Encoding.UTF8.GetBytes(_jwtSettings.Key);
 
-                tokenHandler.ValidateToken(request.Token, new TokenValidationParameters
+                var validationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
@@ -41,23 +42,35 @@ namespace CleanArchitecture.WebApi.Grpc
                     ValidateAudience = true,
                     ValidAudience = _jwtSettings.Audience,
                     ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero
-                }, out SecurityToken validatedToken);
+                    ClockSkew = TimeSpan.FromMinutes(5)
+                };
 
-                var jwtToken = (JwtSecurityToken)validatedToken;
+                var result = await tokenHandler.ValidateTokenAsync(request.Token, validationParameters);
 
-                response.IsValid = true;
-                response.UserId = jwtToken.Claims.FirstOrDefault(x => x.Type == "uid")?.Value ?? string.Empty;
-                
-                var roles = jwtToken.Claims.Where(x => x.Type == "roles").Select(x => x.Value);
-                response.Roles.AddRange(roles);
+                if (result.IsValid)
+                {
+                    response.IsValid = true;
+                    
+                    // In JsonWebTokenHandler, claims are in result.ClaimsIdentity
+                    var claims = result.ClaimsIdentity.Claims;
+                    
+                    response.UserId = claims.FirstOrDefault(x => x.Type == "uid")?.Value 
+                                     ?? claims.FirstOrDefault(x => x.Type == JwtRegisteredClaimNames.Sub)?.Value 
+                                     ?? string.Empty;
+                    
+                    var roles = claims.Where(x => x.Type == "roles" || x.Type == ClaimTypes.Role)
+                                     .Select(x => x.Value)
+                                     .Distinct();
+                                     
+                    response.Roles.AddRange(roles);
+                }
             }
             catch
             {
                 response.IsValid = false;
             }
 
-            return Task.FromResult(response);
+            return response;
         }
     }
 }

@@ -119,39 +119,49 @@ namespace CleanArchitecture.WebApi.Controllers
         /// Validates a JWT token via REST. Returns validity status, user id and roles.
         /// </summary>
         [HttpPost("verify-token")]
-        public IActionResult VerifyToken([FromBody] VerifyTokenRequest request)
+        public async Task<IActionResult> VerifyToken([FromBody] VerifyTokenRequest request)
         {
             if (string.IsNullOrEmpty(request?.Token))
                 return BadRequest(new { error = "INVALID_REQUEST", message = "Token is required." });
 
             try
             {
-                var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-                var key = System.Text.Encoding.UTF8.GetBytes(
-                    HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CleanArchitecture.Core.Settings.JWTSettings>>().Value.Key);
+                var jwtSettings = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CleanArchitecture.Core.Settings.JWTSettings>>().Value;
+                var tokenHandler = new Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler();
+                var key = System.Text.Encoding.UTF8.GetBytes(jwtSettings.Key);
 
-                tokenHandler.ValidateToken(request.Token, new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                var validationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(key),
                     ValidateIssuer = true,
-                    ValidIssuer = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CleanArchitecture.Core.Settings.JWTSettings>>().Value.Issuer,
+                    ValidIssuer = jwtSettings.Issuer,
                     ValidateAudience = true,
-                    ValidAudience = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CleanArchitecture.Core.Settings.JWTSettings>>().Value.Audience,
+                    ValidAudience = jwtSettings.Audience,
                     ValidateLifetime = true,
-                    ClockSkew = System.TimeSpan.Zero
-                }, out var validatedToken);
+                    ClockSkew = System.TimeSpan.FromMinutes(5)
+                };
 
-                var jwtToken = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
-                var uid = jwtToken.Claims.FirstOrDefault(x => x.Type == "uid")?.Value;
-                var roles = jwtToken.Claims.Where(x => x.Type == "roles").Select(x => x.Value).ToList();
+                var result = await tokenHandler.ValidateTokenAsync(request.Token, validationParameters);
 
-                return Ok(new
+                if (result.IsValid)
                 {
-                    is_valid = true,
-                    user_id = uid,
-                    roles = roles
-                });
+                    var claims = result.ClaimsIdentity.Claims;
+                    var uid = claims.FirstOrDefault(x => x.Type == "uid")?.Value;
+                    var roles = claims.Where(x => x.Type == "roles" || x.Type == ClaimTypes.Role)
+                                     .Select(x => x.Value)
+                                     .Distinct()
+                                     .ToList();
+
+                    return Ok(new
+                    {
+                        is_valid = true,
+                        user_id = uid,
+                        roles = roles
+                    });
+                }
+                
+                return Ok(new { is_valid = false, user_id = (string)null, roles = new List<string>() });
             }
             catch
             {
