@@ -15,6 +15,9 @@ namespace CleanArchitecture.WebApi.Controllers
             _campaignService = campaignService;
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of global active campaigns and promotions.
+        /// </summary>
         [HttpGet]
         public async Task<IActionResult> GetCampaigns([FromQuery] int page = 1, [FromQuery] int limit = 20)
         {

@@ -47,6 +47,7 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public async Task<List<AddressDto>> GetAddressesAsync(string userId)
         {
+            await Task.Yield();
             if (!_addresses.ContainsKey(userId))
             {
                 _addresses[userId] = new List<AddressDto>

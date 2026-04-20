@@ -1,118 +1,82 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace CleanArchitecture.Core.DTOs.Order
 {
-    public class CheckoutPreviewRequest
+    // --- Cart Models ---
+    public class CartResponse
     {
-        [JsonPropertyName("vendor_id")]
-        public string VendorId { get; set; }
-
         [JsonPropertyName("items")]
-        public List<OrderItemRequest> Items { get; set; }
+        public List<CartItemDto> Items { get; set; } = new();
+
+        [JsonPropertyName("totalAmount")]
+        public double TotalAmount { get; set; }
     }
 
-    public class OrderItemRequest
+    public class CartItemDto
     {
-        [JsonPropertyName("product_id")]
+        [JsonPropertyName("productId")]
+        public string ProductId { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("quantity")]
+        public int Quantity { get; set; }
+
+        [JsonPropertyName("price")]
+        public double Price { get; set; }
+
+        [JsonPropertyName("subtotal")]
+        public double Subtotal => Quantity * Price;
+    }
+
+    public class AddCartItemRequest
+    {
+        [JsonPropertyName("productId")]
         public string ProductId { get; set; }
 
         [JsonPropertyName("quantity")]
         public int Quantity { get; set; }
     }
 
-    public class CheckoutPreviewResponse
+    public class UpdateCartItemRequest
     {
-        [JsonPropertyName("items_subtotal")]
-        public double ItemsSubtotal { get; set; }
-
-        [JsonPropertyName("delivery_fee")]
-        public double DeliveryFee { get; set; }
-
-        [JsonPropertyName("service_fee")]
-        public double ServiceFee { get; set; }
-
-        [JsonPropertyName("discount_amount")]
-        public double DiscountAmount { get; set; }
-
-        [JsonPropertyName("total_amount")]
-        public double TotalAmount { get; set; }
+        [JsonPropertyName("quantity")]
+        public int Quantity { get; set; }
     }
 
-    public class CreateOrderRequest
+    // --- Order Models ---
+    public class CheckoutRequest
     {
-        [JsonPropertyName("vendor_id")]
-        public string VendorId { get; set; }
+        [JsonPropertyName("deliveryAddress")]
+        public OrderAddressDto DeliveryAddress { get; set; }
 
-        [JsonPropertyName("address_id")]
-        public string AddressId { get; set; }
+        [JsonPropertyName("paymentMethod")]
+        public string PaymentMethod { get; set; } = "CREDIT_CARD";
 
-        [JsonPropertyName("items")]
-        public List<OrderItemRequest> Items { get; set; }
+        [JsonPropertyName("orderType")]
+        public string OrderType { get; set; } = "DELIVERY";
 
-        [JsonPropertyName("payment_method_id")]
-        public string PaymentMethodId { get; set; }
-
-        [JsonPropertyName("note")]
-        public string Note { get; set; }
+        [JsonPropertyName("notes")]
+        public string Notes { get; set; }
     }
 
-    public class CreateOrderResponse
+    public class OrderAddressDto
     {
-        [JsonPropertyName("order_id")]
-        public string OrderId { get; set; }
-
-        [JsonPropertyName("message")]
-        public string Message { get; set; }
-
-        [JsonPropertyName("vendor_id")]
-        public string VendorId { get; set; }
-
-        [JsonPropertyName("status")]
-        public string Status { get; set; }
-
-        [JsonPropertyName("total_price")]
-        public double TotalPrice { get; set; }
-
-        [JsonPropertyName("address_snapshot")]
-        public AddressSnapshotDto AddressSnapshot { get; set; }
-    }
-
-    public class AddressSnapshotDto
-    {
-        [JsonPropertyName("address_title")]
-        public string AddressTitle { get; set; }
-
-        [JsonPropertyName("city")]
-        public string City { get; set; }
+        [JsonPropertyName("street")]
+        public string Street { get; set; }
 
         [JsonPropertyName("district")]
         public string District { get; set; }
 
-        [JsonPropertyName("neighborhood")]
-        public string Neighborhood { get; set; }
+        [JsonPropertyName("city")]
+        public string City { get; set; }
 
-        [JsonPropertyName("street")]
-        public string Street { get; set; }
+        [JsonPropertyName("postalCode")]
+        public string PostalCode { get; set; }
 
-        [JsonPropertyName("building_no")]
-        public string BuildingNo { get; set; }
-
-        [JsonPropertyName("floor")]
-        public string Floor { get; set; }
-
-        [JsonPropertyName("apartment_no")]
-        public string ApartmentNo { get; set; }
-
-        [JsonPropertyName("address_description")]
-        public string AddressDescription { get; set; }
-
-        [JsonPropertyName("location")]
-        public OrderLocationDto Location { get; set; }
-    }
-
-    public class OrderLocationDto
-    {
         [JsonPropertyName("lat")]
         public double Lat { get; set; }
 
@@ -120,78 +84,75 @@ namespace CleanArchitecture.Core.DTOs.Order
         public double Lng { get; set; }
     }
 
-    public class OrderSummaryDto
+    public class OrderResponse
     {
-        [JsonPropertyName("id")]
-        public string Id { get; set; }
+        [JsonPropertyName("orderId")]
+        public string OrderId { get; set; }
 
-        [JsonPropertyName("vendor_name")]
-        public string VendorName { get; set; }
+        [JsonPropertyName("userId")]
+        public string UserId { get; set; }
 
         [JsonPropertyName("status")]
         public string Status { get; set; }
 
-        [JsonPropertyName("total_amount")]
+        [JsonPropertyName("totalAmount")]
         public double TotalAmount { get; set; }
 
-        [JsonPropertyName("date_label")]
-        public string DateLabel { get; set; }
+        [JsonPropertyName("currency")]
+        public string Currency { get; set; } = "TRY";
 
-        [JsonPropertyName("address_snapshot")]
-        public AddressSnapshotDto AddressSnapshot { get; set; }
+        [JsonPropertyName("items")]
+        public List<OrderItemDto> Items { get; set; }
 
-        [JsonPropertyName("item_summary")]
-        public string ItemSummary { get; set; }
+        [JsonPropertyName("deliveryAddress")]
+        public OrderAddressDto DeliveryAddress { get; set; }
 
-        [JsonPropertyName("delivered_item_count")]
-        public int DeliveredItemCount { get; set; }
+        [JsonPropertyName("createdAt")]
+        public DateTime CreatedAt { get; set; }
+
+        [JsonPropertyName("updatedAt")]
+        public DateTime UpdatedAt { get; set; }
     }
 
-    public class OrderDetailDto
+    public class OrderItemDto
     {
         [JsonPropertyName("id")]
         public string Id { get; set; }
 
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("quantity")]
+        public int Quantity { get; set; }
+
+        [JsonPropertyName("price")]
+        public double Price { get; set; }
+    }
+
+    public class InternalPaymentCallbackRequest
+    {
+        [JsonPropertyName("status")]
+        public string Status { get; set; } // HOLD_CONFIRMED, CAPTURE_COMPLETED, etc.
+    }
+
+    public class UpdateOrderStatusRequest
+    {
         [JsonPropertyName("status")]
         public string Status { get; set; }
-
-        [JsonPropertyName("status_label")]
-        public string StatusLabel { get; set; }
-
-        [JsonPropertyName("eta_range")]
-        public string EtaRange { get; set; }
-
-        [JsonPropertyName("active_step_index")]
-        public int ActiveStepIndex { get; set; }
-
-        [JsonPropertyName("address_snapshot")]
-        public AddressSnapshotDto AddressSnapshot { get; set; }
-
-        [JsonPropertyName("steps")]
-        public List<OrderStepDto> Steps { get; set; }
     }
-
-    public class OrderStepDto
-    {
-        [JsonPropertyName("title")]
-        public string Title { get; set; }
-
-        [JsonPropertyName("is_completed")]
-        public bool IsCompleted { get; set; }
-    }
-
-    public class PagedOrdersResponse
+    
+    public class PagedResponse<T>
     {
         [JsonPropertyName("page")]
         public int Page { get; set; }
 
-        [JsonPropertyName("limit")]
-        public int Limit { get; set; }
+        [JsonPropertyName("size")]
+        public int Size { get; set; }
 
         [JsonPropertyName("total")]
-        public int Total { get; set; }
+        public long Total { get; set; }
 
         [JsonPropertyName("data")]
-        public List<OrderSummaryDto> Data { get; set; }
+        public List<T> Data { get; set; }
     }
 }

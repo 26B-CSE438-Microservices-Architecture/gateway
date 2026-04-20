@@ -24,24 +24,36 @@ namespace CleanArchitecture.WebApi.Controllers
             _campaignService = campaignService;
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of all restaurants/vendors.
+        /// </summary>
         [HttpGet]
         public async Task<IActionResult> GetVendors([FromQuery] int page = 1, [FromQuery] int limit = 20)
         {
             return Ok(await _vendorService.GetVendorsAsync(page, limit));
         }
 
+        /// <summary>
+        /// Retrieves detailed profile and information for a specific restaurant.
+        /// </summary>
         [HttpGet("{vendor_id}")]
         public async Task<IActionResult> GetVendor(string vendor_id)
         {
             return Ok(await _vendorService.GetVendorByIdAsync(vendor_id));
         }
 
+        /// <summary>
+        /// Lists restaurants within a specific geographic radius.
+        /// </summary>
         [HttpGet("nearby")]
         public async Task<IActionResult> GetNearbyVendors([FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radius = 5.0)
         {
             return Ok(await _vendorService.GetNearbyVendorsAsync(lat, lng, radius));
         }
 
+        /// <summary>
+        /// Retrieves the full menu structure (sections and products) for a restaurant.
+        /// </summary>
         [HttpGet("{vendor_id}/menu")]
         public async Task<IActionResult> GetVendorMenu(string vendor_id)
         {
@@ -49,6 +61,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(vendor.MenuSections);
         }
 
+        /// <summary>
+        /// Registers a new restaurant in the system.
+        /// </summary>
         [HttpPost]
         public async Task<IActionResult> CreateVendor([FromBody] CreateVendorDto request)
         {
@@ -56,12 +71,18 @@ namespace CleanArchitecture.WebApi.Controllers
             return CreatedAtAction(nameof(GetVendor), new { vendor_id = id }, new { id });
         }
 
+        /// <summary>
+        /// Updates the core profile details of a restaurant.
+        /// </summary>
         [HttpPut("{vendor_id}")]
         public async Task<IActionResult> UpdateVendor(string vendor_id, [FromBody] UpdateVendorDto request)
         {
             return Ok(await _vendorService.UpdateVendorAsync(vendor_id, request));
         }
 
+        /// <summary>
+        /// Updates the operational status (Active/Inactive) of a restaurant.
+        /// </summary>
         [HttpPatch("{vendor_id}/status")]
         public async Task<IActionResult> UpdateVendorStatus(string vendor_id, [FromBody] UpdateStatusDto request)
         {
@@ -118,6 +139,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _vendorService.DeleteProductAsync(id));
         }
 
+        /// <summary>
+        /// Retrieves customer reviews and ratings for a restaurant.
+        /// </summary>
         [HttpGet("{vendor_id}/reviews")]
         public async Task<IActionResult> GetVendorReviews(
             string vendor_id,
@@ -127,6 +151,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _reviewService.GetVendorReviewsAsync(vendor_id, page, limit));
         }
 
+        /// <summary>
+        /// Retrieves active promotions and campaigns for a restaurant.
+        /// </summary>
         [HttpGet("{vendor_id}/campaigns")]
         public async Task<IActionResult> GetVendorCampaigns(
             string vendor_id,

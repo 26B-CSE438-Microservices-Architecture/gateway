@@ -21,12 +21,18 @@ namespace CleanArchitecture.WebApi.Controllers
             _accountService = accountService;
         }
 
+        /// <summary>
+        /// Authenticates a user and returns a JWT token.
+        /// </summary>
         [HttpPost("login")]
         public async Task<IActionResult> LoginAsync(AuthenticationRequest request)
         {
             return Ok(await _accountService.LoginAsync(request, GenerateIPAddress()));
         }
 
+        /// <summary>
+        /// Registers a new user in the system.
+        /// </summary>
         [HttpPost("register")]
         public async Task<IActionResult> RegisterAsync(RegisterRequest request)
         {
@@ -34,12 +40,18 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _accountService.RegisterAsync(request, origin));
         }
 
+        /// <summary>
+        /// Refreshes an expired JWT token using a valid refresh token.
+        /// </summary>
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshAsync(RefreshTokenRequest request)
         {
             return Ok(await _accountService.RefreshTokenAsync(request, GenerateIPAddress()));
         }
 
+        /// <summary>
+        /// Revokes the user's current session and invalidates the refresh token.
+        /// </summary>
         [HttpPost("logout")]
         public async Task<IActionResult> LogoutAsync(LogoutRequest request)
         {
@@ -51,6 +63,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return BadRequest(new { message = "Invalid token" });
         }
 
+        /// <summary>
+        /// Changes the password for the authenticated user.
+        /// </summary>
         [Authorize]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
@@ -67,6 +82,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _accountService.UpdateProfileAsync(userId, request));
         }
 
+        /// <summary>
+        /// Permanently deletes the user account.
+        /// </summary>
         [Authorize]
         [HttpDelete("account")]
         public async Task<IActionResult> DeleteAccount(DeleteAccountRequest request)
@@ -75,6 +93,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _accountService.DeleteAccountAsync(userId, request));
         }
 
+        /// <summary>
+        /// Confirms the user's email address using a verification code.
+        /// </summary>
         [HttpGet("confirm-email")]
         public async Task<IActionResult> ConfirmEmailAsync([FromQuery] string userId, [FromQuery] string code)
         {
@@ -82,6 +103,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _accountService.ConfirmEmailAsync(userId, code));
         }
 
+        /// <summary>
+        /// Sends a password reset email to the specified address.
+        /// </summary>
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest model)
         {
@@ -90,6 +114,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(result);
         }
 
+        /// <summary>
+        /// Resets the user's password using a reset token.
+        /// </summary>
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPasswordRequest model)
         {

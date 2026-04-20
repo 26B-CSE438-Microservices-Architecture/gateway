@@ -17,6 +17,9 @@ namespace CleanArchitecture.WebApi.Controllers
             _homeService = homeService;
         }
 
+        /// <summary>
+        /// Retrieves the landing page discovery data (campaigns, nearby restaurants, etc.).
+        /// </summary>
         [HttpGet("discover")]
         [Authorize]
         public async Task<IActionResult> GetDiscover()

@@ -22,6 +22,10 @@ namespace CleanArchitecture.WebApi.Controllers
         /// <summary>
         /// Fetch basic user profile by ID. Used by Order and Payment services.
         /// </summary>
+        /// <summary>
+        /// Retrieves non-sensitive internal user data (e.g. for Order Service).
+        /// Requires X-Internal-Secret header.
+        /// </summary>
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetUserById(string userId)
         {

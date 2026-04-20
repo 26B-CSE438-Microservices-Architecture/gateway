@@ -19,7 +19,7 @@ namespace CleanArchitecture.WebApi.Controllers
         }
 
         /// <summary>
-        /// List all users (paginated).
+        /// Retrieves a paginated list of all users in the system.
         /// </summary>
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers([FromQuery] int page = 1, [FromQuery] int limit = 20)
@@ -28,9 +28,9 @@ namespace CleanArchitecture.WebApi.Controllers
         }
 
         /// <summary>
-        /// Get any user by ID.
+        /// Retrieves detailed information for any user by their ID.
         /// </summary>
-        [HttpGet("users/{id}")]
+        [HttpPut("users/{userId}")]
         public async Task<IActionResult> GetUserById(string id)
         {
             return Ok(await _userService.GetInternalUserByIdAsync(id));

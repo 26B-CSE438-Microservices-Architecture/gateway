@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 
 namespace CleanArchitecture.WebApi.Controllers
 {
     public class MetaController : BaseApiController
     {
+        /// <summary>
+        /// Retrieves system information and version details.
+        /// </summary>
         [HttpGet("/info")]
         public ActionResult<string> Info()
         {

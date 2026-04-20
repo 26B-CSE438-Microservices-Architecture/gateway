@@ -21,6 +21,9 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(await _searchService.GetDiscoveryAsync());
         }
 
+        /// <summary>
+        /// Performs a global search across restaurants and products.
+        /// </summary>
         [HttpGet]
         public async Task<IActionResult> Search(
             [FromQuery] string q,
