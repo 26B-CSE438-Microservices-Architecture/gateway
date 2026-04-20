@@ -23,7 +23,26 @@ namespace CleanArchitecture.Infrastructure.Services
                 LogoUrl = "https://cdn.app.com/burger_logo.png",
                 WorkingHours = new WorkingHoursDto { Open = "10:00", Close = "02:00", IsOpen = true },
                 DeliveryInfo = new DeliveryInfoDto { EtaRange = "20-30 dk", MinimumBasketAmount = 180, DeliveryFee = 24.9 },
-                MenuSections = new List<MenuSectionDto>()
+                MenuSections = new List<MenuSectionDto>
+                {
+                    new MenuSectionDto
+                    {
+                        Id = "section_1",
+                        Title = "Burger Menüler",
+                        Products = new List<ProductDto>
+                        {
+                            new ProductDto
+                            {
+                                Id = "prod_1",
+                                Name = "Double Smash Burger",
+                                Description = "Çift köfte cheddar peynir",
+                                Price = 210,
+                                ImageUrl = "https://cdn.app.com/burger.png",
+                                IsAvailable = true
+                            }
+                        }
+                    }
+                }
             },
             new VendorDetailDto
             {
@@ -85,7 +104,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 {
                     VendorId = v.Id,
                     Name = v.Name,
-                    ImageUrl = v.LogoUrl // Using LogoUrl as image_url for mobile
+                    ImageUrl = v.LogoUrl
                 })
                 .ToList());
         }

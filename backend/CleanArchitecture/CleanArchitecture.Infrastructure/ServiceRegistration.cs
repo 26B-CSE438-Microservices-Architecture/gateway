@@ -69,7 +69,8 @@ namespace CleanArchitecture.Infrastructure
                         ClockSkew = TimeSpan.FromMinutes(5),
                         ValidIssuer = configuration["JWTSettings:Issuer"],
                         ValidAudience = configuration["JWTSettings:Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWTSettings:Key"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWTSettings:Key"])),
+                        RoleClaimType = "roles"
                     };
                     o.Events = new JwtBearerEvents()
                     {
