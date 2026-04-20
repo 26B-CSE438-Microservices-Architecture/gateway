@@ -16,7 +16,7 @@ namespace CleanArchitecture.Infrastructure.Services
 
         // Mock in-memory stores for addresses and favorites
         private static readonly Dictionary<string, List<AddressDto>> _addresses = new();
-        private static readonly Dictionary<string, List<FavoriteVendorDto>> _favorites = new();
+        private static readonly Dictionary<string, List<UserStoreFavorite>> _favorites = new();
 
         public UserService(UserManager<ApplicationUser> userManager)
         {
@@ -29,31 +29,25 @@ namespace CleanArchitecture.Infrastructure.Services
             if (user == null)
                 throw new NotFoundException("USER_NOT_FOUND", "User not found");
 
-            return new UserProfileDto
-            {
-                Id = user.Id,
-                Name = user.FirstName,
-                Surname = user.LastName,
-                Email = user.Email,
-                PhoneNumber = user.PhoneNumber,
-                LoyaltyPoints = 420,
-                NotificationPreferences = new NotificationPreferencesDto
-                {
-                    PushEnabled = true,
-                    SmsEnabled = false,
-                    EmailEnabled = true
-                }
-            };
+            return await MapToProfileAsync(user);
         }
 
-        public Task RegisterDeviceAsync(string userId, RegisterDeviceRequest request)
+        public async Task<UserProfileDto> UpdateProfileAsync(string userId, UserUpdateProfileRequest request)
         {
-            // Mock: device token stored (no-op for now)
-            return Task.CompletedTask;
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                throw new NotFoundException("USER_NOT_FOUND", "User not found");
+
+            if (request.Name != null) user.FirstName = request.Name;
+            if (request.Phone != null) user.PhoneNumber = request.Phone;
+
+            await _userManager.UpdateAsync(user);
+            return await MapToProfileAsync(user);
         }
 
-        public Task<List<AddressDto>> GetAddressesAsync(string userId)
+        public async Task<List<AddressDto>> GetAddressesAsync(string userId)
         {
+            await Task.Yield();
             if (!_addresses.ContainsKey(userId))
             {
                 _addresses[userId] = new List<AddressDto>
@@ -61,25 +55,17 @@ namespace CleanArchitecture.Infrastructure.Services
                     new AddressDto
                     {
                         Id = "addr_1",
-                        AddressTitle = "Ev",
+                        Label = "Home",
                         City = "Antalya",
-                        District = "Kepez",
-                        Neighborhood = "Kültür Mah",
-                        Street = "3818 Sokak",
-                        BuildingNo = "8",
-                        Floor = "3",
-                        ApartmentNo = "6",
-                        AddressDescription = "Kapý zili çalýþmýyor",
-                        Phone = "05555555555",
-                        Location = new LocationDto { Lat = 36.884804, Lng = 30.704044 },
-                        MaskedPhone = "555*****55",
-                        ShowsMapPreview = true,
-                        IsCurrent = true
+                        Street = "Ataturk Cad. No:5",
+                        PostalCode = "07100",
+                        Lat = 36.8969,
+                        Lng = 30.7133
                     }
                 };
             }
 
-            return Task.FromResult(_addresses[userId]);
+            return _addresses[userId];
         }
 
         public Task<AddressDto> CreateAddressAsync(string userId, CreateAddressRequest request)
@@ -87,56 +73,19 @@ namespace CleanArchitecture.Infrastructure.Services
             if (!_addresses.ContainsKey(userId))
                 _addresses[userId] = new List<AddressDto>();
 
-            var phone = request.Phone ?? "";
-            var maskedPhone = phone.Length >= 10
-                ? phone.Substring(0, 3) + "*****" + phone.Substring(phone.Length - 2)
-                : phone;
-
             var newAddress = new AddressDto
             {
                 Id = $"addr_{Guid.NewGuid():N}".Substring(0, 10),
-                AddressTitle = request.AddressTitle,
+                Label = request.Label,
                 City = request.City,
-                District = request.District,
-                Neighborhood = request.Neighborhood,
                 Street = request.Street,
-                BuildingNo = request.BuildingNo,
-                Floor = request.Floor,
-                ApartmentNo = request.ApartmentNo,
-                AddressDescription = request.AddressDescription,
-                Phone = request.Phone,
-                Location = request.Location,
-                MaskedPhone = maskedPhone,
-                ShowsMapPreview = request.Location != null,
-                IsCurrent = false
+                PostalCode = request.PostalCode,
+                Lat = request.Lat,
+                Lng = request.Lng
             };
 
             _addresses[userId].Add(newAddress);
             return Task.FromResult(newAddress);
-        }
-
-        public Task<AddressDto> UpdateAddressAsync(string userId, string addressId, UpdateAddressRequest request)
-        {
-            if (!_addresses.ContainsKey(userId))
-                throw new NotFoundException("ADDRESS_NOT_FOUND", "Address not found");
-
-            var address = _addresses[userId].FirstOrDefault(a => a.Id == addressId);
-            if (address == null)
-                throw new NotFoundException("ADDRESS_NOT_FOUND", "Address not found");
-
-            if (request.AddressTitle != null) address.AddressTitle = request.AddressTitle;
-            if (request.City != null) address.City = request.City;
-            if (request.District != null) address.District = request.District;
-            if (request.Neighborhood != null) address.Neighborhood = request.Neighborhood;
-            if (request.Street != null) address.Street = request.Street;
-            if (request.BuildingNo != null) address.BuildingNo = request.BuildingNo;
-            if (request.Floor != null) address.Floor = request.Floor;
-            if (request.ApartmentNo != null) address.ApartmentNo = request.ApartmentNo;
-            if (request.AddressDescription != null) address.AddressDescription = request.AddressDescription;
-            if (request.Phone != null) address.Phone = request.Phone;
-            if (request.Location != null) address.Location = request.Location;
-
-            return Task.FromResult(address);
         }
 
         public Task DeleteAddressAsync(string userId, string addressId)
@@ -152,25 +101,22 @@ namespace CleanArchitecture.Infrastructure.Services
             return Task.CompletedTask;
         }
 
-        public Task<PagedFavoritesResponse> GetFavoritesAsync(string userId, int page, int limit)
+        // --- Favorites Implementation ---
+
+        public Task<PagedFavoritesResponse<UserStoreFavorite>> GetFavoritesAsync(string userId, int page, int limit)
         {
             if (!_favorites.ContainsKey(userId))
             {
-                _favorites[userId] = new List<FavoriteVendorDto>
+                _favorites[userId] = new List<UserStoreFavorite>
                 {
-                    new FavoriteVendorDto
-                    {
-                        VendorId = "vendor_101",
-                        Name = "Burger Point",
-                        ImageUrl = "https://cdn.app.com/burger.jpg"
-                    }
+                    new UserStoreFavorite { VendorId = "vendor_101", CreatedAt = DateTime.UtcNow.AddHours(-1) }
                 };
             }
 
-            var all = _favorites[userId];
+            var all = _favorites[userId].OrderByDescending(f => f.CreatedAt).ToList();
             var paged = all.Skip((page - 1) * limit).Take(limit).ToList();
 
-            return Task.FromResult(new PagedFavoritesResponse
+            return Task.FromResult(new PagedFavoritesResponse<UserStoreFavorite>
             {
                 Page = page,
                 Limit = limit,
@@ -182,15 +128,14 @@ namespace CleanArchitecture.Infrastructure.Services
         public Task AddFavoriteAsync(string userId, string vendorId)
         {
             if (!_favorites.ContainsKey(userId))
-                _favorites[userId] = new List<FavoriteVendorDto>();
+                _favorites[userId] = new List<UserStoreFavorite>();
 
             if (!_favorites[userId].Any(f => f.VendorId == vendorId))
             {
-                _favorites[userId].Add(new FavoriteVendorDto
+                _favorites[userId].Add(new UserStoreFavorite
                 {
                     VendorId = vendorId,
-                    Name = $"Vendor {vendorId}",
-                    ImageUrl = $"https://cdn.app.com/{vendorId}.jpg"
+                    CreatedAt = DateTime.UtcNow
                 });
             }
 
@@ -200,14 +145,85 @@ namespace CleanArchitecture.Infrastructure.Services
         public Task RemoveFavoriteAsync(string userId, string vendorId)
         {
             if (!_favorites.ContainsKey(userId))
-                throw new NotFoundException("FAVORITE_NOT_FOUND", "Favorite not found");
+                return Task.CompletedTask;
 
             var fav = _favorites[userId].FirstOrDefault(f => f.VendorId == vendorId);
-            if (fav == null)
-                throw new NotFoundException("FAVORITE_NOT_FOUND", "Favorite not found");
+            if (fav != null)
+            {
+                _favorites[userId].Remove(fav);
+            }
 
-            _favorites[userId].Remove(fav);
             return Task.CompletedTask;
+        }
+
+        // Internal Endpoints
+        public async Task<UserProfileDto> GetInternalUserByIdAsync(string userId)
+        {
+            return await GetProfileAsync(userId);
+        }
+
+        public async Task<List<UserProfileDto>> LookupUsersAsync(List<string> userIds)
+        {
+            var result = new List<UserProfileDto>();
+            foreach (var id in userIds)
+            {
+                try { result.Add(await GetProfileAsync(id)); } catch { }
+            }
+            return result;
+        }
+
+        public async Task<UserAuthDto> GetUserByEmailAsync(string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+                throw new NotFoundException("USER_NOT_FOUND", "User not found");
+
+            var roles = await _userManager.GetRolesAsync(user);
+
+            return new UserAuthDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                HashedPassword = "$2b$12$K8M... (Mock BCrypt)",
+                Role = roles.FirstOrDefault() ?? "CUSTOMER",
+                Active = true
+            };
+        }
+
+        public async Task<PagedUsersResponse> GetAllUsersAdminAsync(int page, int limit)
+        {
+            var users = _userManager.Users.ToList();
+            var paged = users.Skip((page - 1) * limit).Take(limit).ToList();
+            
+            var dtos = new List<UserProfileDto>();
+            foreach(var u in paged) dtos.Add(await MapToProfileAsync(u));
+
+            return new PagedUsersResponse
+            {
+                Page = page,
+                Limit = limit,
+                Total = users.Count,
+                Data = dtos
+            };
+        }
+
+        public Task<bool> DeactivateUserAsync(string userId) => Task.FromResult(true);
+        public Task<bool> ActivateUserAsync(string userId) => Task.FromResult(true);
+
+        private async Task<UserProfileDto> MapToProfileAsync(ApplicationUser user)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            return new UserProfileDto
+            {
+                Id = user.Id,
+                Name = $"{user.FirstName} {user.LastName}".Trim(),
+                Email = user.Email,
+                Phone = user.PhoneNumber,
+                Role = roles.FirstOrDefault() ?? "CUSTOMER",
+                Active = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-10),
+                Addresses = await GetAddressesAsync(user.Id)
+            };
         }
     }
 }

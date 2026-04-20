@@ -1,5 +1,4 @@
 using CleanArchitecture.Core.DTOs.Order;
-using CleanArchitecture.Core.DTOs.Review;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +9,6 @@ namespace CleanArchitecture.WebApi.Controllers
 {
     [Route("api/v1/orders")]
     [ApiController]
-    [Authorize]
     public class OrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
@@ -20,41 +18,59 @@ namespace CleanArchitecture.WebApi.Controllers
             _orderService = orderService;
         }
 
-        [HttpPost("checkout/preview")]
-        public async Task<IActionResult> CheckoutPreview([FromBody] CheckoutPreviewRequest request)
+        /// <summary>
+        /// Retrieves the current user's order history with pagination and status filtering.
+        /// </summary>
+        [Authorize]
+        [HttpGet("my")]
+        public async Task<IActionResult> GetMyOrders([FromQuery] string status, [FromQuery] int page = 0, [FromQuery] int size = 10)
         {
             var userId = User.FindFirstValue("uid");
-            return Ok(await _orderService.GetCheckoutPreviewAsync(userId, request));
+            return Ok(await _orderService.GetMyOrdersAsync(userId, status, page, size));
         }
 
-        [HttpPost]
-        public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request)
+        /// <summary>
+        /// Retrieves detailed information about a specific order.
+        /// </summary>
+        [Authorize]
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetOrder(string id)
         {
             var userId = User.FindFirstValue("uid");
-            var result = await _orderService.CreateOrderAsync(userId, request);
-            return StatusCode(201, result);
+            return Ok(await _orderService.GetOrderByIdAsync(userId, id));
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetOrders([FromQuery] int page = 1, [FromQuery] int limit = 10)
+        /// <summary>
+        /// Cancels a pending or held order.
+        /// </summary>
+        [Authorize]
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> CancelOrder(string id)
         {
             var userId = User.FindFirstValue("uid");
-            return Ok(await _orderService.GetOrdersAsync(userId, page, limit));
+            return Ok(await _orderService.CancelOrderAsync(userId, id));
         }
 
-        [HttpGet("{order_id}")]
-        public async Task<IActionResult> GetOrder(string order_id)
+        /// <summary>
+        /// Re-populates the basket with items from a previous order.
+        /// </summary>
+        [Authorize]
+        [HttpPost("{id}/reorder")]
+        public async Task<IActionResult> Reorder(string id)
         {
             var userId = User.FindFirstValue("uid");
-            return Ok(await _orderService.GetOrderByIdAsync(userId, order_id));
+            return Ok(await _orderService.ReorderAsync(userId, id));
         }
 
-        [HttpPost("{order_id}/rating")]
-        public async Task<IActionResult> SubmitRating(string order_id, [FromBody] SubmitRatingRequest request)
+        /// <summary>
+        /// Initiates a refund request for a paid or delivered order.
+        /// </summary>
+        [Authorize]
+        [HttpPost("{id}/request-refund")]
+        public async Task<IActionResult> RequestRefund(string id)
         {
             var userId = User.FindFirstValue("uid");
-            await _orderService.SubmitRatingAsync(userId, order_id, request);
-            return Ok(new { message = "Review submitted successfully" });
+            return Ok(await _orderService.RequestRefundAsync(userId, id));
         }
     }
 }

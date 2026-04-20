@@ -4,6 +4,321 @@
         <name>CleanArchitecture.WebApi</name>
     </assembly>
     <members>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.GetAllUsers(System.Int32,System.Int32)">
+            <summary>
+            Retrieves a paginated list of all users in the system.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.GetUserById(System.String)">
+            <summary>
+            Retrieves detailed information for any user by their ID.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.DeactivateUser(System.String)">
+            <summary>
+            Soft delete — marks user as deactivated.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.ActivateUser(System.String)">
+            <summary>
+            Re-activate a user account.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.LoginAsync(CleanArchitecture.Core.DTOs.Account.AuthenticationRequest)">
+            <summary>
+            Authenticates a user and returns a JWT token.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.RegisterAsync(CleanArchitecture.Core.DTOs.Account.RegisterRequest)">
+            <summary>
+            Registers a new user in the system.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.RefreshAsync(CleanArchitecture.Core.DTOs.Account.RefreshTokenRequest)">
+            <summary>
+            Refreshes an expired JWT token using a valid refresh token.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.LogoutAsync(CleanArchitecture.Core.DTOs.Account.LogoutRequest)">
+            <summary>
+            Revokes the user's current session and invalidates the refresh token.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.ChangePassword(CleanArchitecture.Core.DTOs.Account.ChangePasswordRequest)">
+            <summary>
+            Changes the password for the authenticated user.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.DeleteAccount(CleanArchitecture.Core.DTOs.Account.DeleteAccountRequest)">
+            <summary>
+            Permanently deletes the user account.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.ConfirmEmailAsync(System.String,System.String)">
+            <summary>
+            Confirms the user's email address using a verification code.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.ForgotPassword(CleanArchitecture.Core.DTOs.Account.ForgotPasswordRequest)">
+            <summary>
+            Sends a password reset email to the specified address.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.ResetPassword(CleanArchitecture.Core.DTOs.Account.ResetPasswordRequest)">
+            <summary>
+            Resets the user's password using a reset token.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.GetCurrentUser">
+            <summary>
+            Returns the current authenticated user's profile extracted from the JWT token.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.VerifyToken(CleanArchitecture.Core.DTOs.Account.VerifyTokenRequest)">
+            <summary>
+            Validates a JWT token via REST. Returns validity status, user id and roles.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.CampaignsController.GetCampaigns(System.Int32,System.Int32)">
+            <summary>
+            Retrieves a paginated list of global active campaigns and promotions.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.CartController.GetCart">
+            <summary>
+            Retrieves the current user's basket/cart.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.CartController.AddToCart(CleanArchitecture.Core.DTOs.Order.AddCartItemRequest)">
+            <summary>
+            Adds a product to the user's basket.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.CartController.UpdateItem(System.String,CleanArchitecture.Core.DTOs.Order.UpdateCartItemRequest)">
+            <summary>
+            Updates the quantity of an item in the basket.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.CartController.RemoveItem(System.String)">
+            <summary>
+            Removes an item from the basket.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.CartController.ClearCart">
+            <summary>
+            Clears all items from the basket.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.CartController.Checkout(CleanArchitecture.Core.DTOs.Order.CheckoutRequest)">
+            <summary>
+            Converts the current basket into a pending order. Requires Idempotency-Key.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.HomeController.GetDiscover">
+            <summary>
+            Retrieves the landing page discovery data (campaigns, nearby restaurants, etc.).
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalOrdersController.PaymentCallback(System.String,CleanArchitecture.Core.DTOs.Order.InternalPaymentCallbackRequest)">
+            <summary>
+            Recieves payment status updates (e.g. HOLD_CONFIRMED) from the Payment Service.
+            Requires X-Internal-Secret header.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.GetUserById(System.String)">
+            <summary>
+            Fetch basic user profile by ID. Used by Order and Payment services.
+            </summary>
+            <summary>
+            Retrieves non-sensitive internal user data (e.g. for Order Service).
+            Requires X-Internal-Secret header.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.BulkLookup(CleanArchitecture.WebApi.Controllers.UserLookupRequest)">
+            <summary>
+            Bulk fetch multiple users by a list of IDs.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.GetUserByEmail(System.String)">
+            <summary>
+            Look up a user by email address. Used by Gateway/Auth for credential verification.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalVendorsController.BulkLookup(CleanArchitecture.Core.DTOs.Vendor.VendorLookupRequest)">
+            <summary>
+            Bulk fetch vendor details (name, image_url) by IDs. Used by Gateway/BFF for composition.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.MetaController.Info">
+            <summary>
+            Retrieves system information and version details.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.GetMyOrders(System.String,System.Int32,System.Int32)">
+            <summary>
+            Retrieves the current user's order history with pagination and status filtering.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.GetOrder(System.String)">
+            <summary>
+            Retrieves detailed information about a specific order.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.CancelOrder(System.String)">
+            <summary>
+            Cancels a pending or held order.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.Reorder(System.String)">
+            <summary>
+            Re-populates the basket with items from a previous order.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.RequestRefund(System.String)">
+            <summary>
+            Initiates a refund request for a paid or delivered order.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.InitializePayment(CleanArchitecture.Core.DTOs.Payment.PaymentInitRequest)">
+            <summary>
+            Initialize a payment and get the iyzico Checkout Form.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.ProcessCallback(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCallbackRequest)">
+            <summary>
+            Callback called after user completes the iyzico hosted form.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.CapturePayment(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCaptureRequest)">
+            <summary>
+            Capture funds for an authorized payment.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.CancelPayment(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCancelRequest)">
+            <summary>
+            Cancel (Void or Refund) a payment.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.GetPayment(System.String)">
+            <summary>
+            Get payment details by ID.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.GetPaymentsByOrder(System.String)">
+            <summary>
+            Get all payments for an order.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.GetRestaurantOrders(System.String,System.Int32,System.Int32)">
+            <summary>
+            Retrieves paginated orders belonging to the restaurant.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.ConfirmOrder(System.String)">
+            <summary>
+            Confirms a held order, triggering the payment capture process.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.RejectOrder(System.String)">
+            <summary>
+            Rejects a held order, triggering a payment hold release.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.UpdateStatus(System.String,CleanArchitecture.Core.DTOs.Order.UpdateOrderStatusRequest)">
+            <summary>
+            Manually updates the order status (e.g. PREPARING, DELIVERED).
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.SearchController.Search(System.String,System.Nullable{System.Double},System.Nullable{System.Double})">
+            <summary>
+            Performs a global search across restaurants and products.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.GetProfile">
+            <summary>
+            Get the authenticated user's own profile.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.UpdateProfile(CleanArchitecture.Core.DTOs.User.UserUpdateProfileRequest)">
+            <summary>
+            Update the authenticated user's own profile (name, phone only).
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.GetAddresses">
+            <summary>
+            List all saved addresses of the authenticated user.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.CreateAddress(CleanArchitecture.Core.DTOs.User.CreateAddressRequest)">
+            <summary>
+            Add a new delivery address.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.DeleteAddress(System.String)">
+            <summary>
+            Remove a delivery address.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.GetFavorites(System.Int32,System.Int32)">
+            <summary>
+            Get favorites with details aggregated from User and Restaurant services.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.AddFavorite(System.String)">
+            <summary>
+            Add a vendor to favorites.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.RemoveFavorite(System.String)">
+            <summary>
+            Remove a vendor from favorites.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.GetVendors(System.Int32,System.Int32)">
+            <summary>
+            Retrieves a paginated list of all restaurants/vendors.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.GetVendor(System.String)">
+            <summary>
+            Retrieves detailed profile and information for a specific restaurant.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.GetNearbyVendors(System.Double,System.Double,System.Double)">
+            <summary>
+            Lists restaurants within a specific geographic radius.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.GetVendorMenu(System.String)">
+            <summary>
+            Retrieves the full menu structure (sections and products) for a restaurant.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.CreateVendor(CleanArchitecture.Core.DTOs.Vendor.CreateVendorDto)">
+            <summary>
+            Registers a new restaurant in the system.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.UpdateVendor(System.String,CleanArchitecture.Core.DTOs.Vendor.UpdateVendorDto)">
+            <summary>
+            Updates the core profile details of a restaurant.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.UpdateVendorStatus(System.String,CleanArchitecture.Core.DTOs.Vendor.UpdateStatusDto)">
+            <summary>
+            Updates the operational status (Active/Inactive) of a restaurant.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.GetVendorReviews(System.String,System.Int32,System.Int32)">
+            <summary>
+            Retrieves customer reviews and ratings for a restaurant.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.VendorsController.GetVendorCampaigns(System.String,System.Int32,System.Int32)">
+            <summary>
+            Retrieves active promotions and campaigns for a restaurant.
+            </summary>
+        </member>
         <member name="T:CleanArchitecture.WebApi.Grpc.AuthReflection">
             <summary>Holder for reflection information generated from Protos/auth.proto</summary>
         </member>

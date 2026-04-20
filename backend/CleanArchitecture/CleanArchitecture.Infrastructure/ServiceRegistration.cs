@@ -1,4 +1,3 @@
-﻿using CleanArchitecture.Core.Interfaces;
 using CleanArchitecture.Core.Interfaces;
 using CleanArchitecture.Core.Wrappers;
 using CleanArchitecture.Core.Settings;
@@ -24,8 +23,10 @@ namespace CleanArchitecture.Infrastructure
         {
             if (configuration.GetValue<bool>("UseInMemoryDatabase"))
             {
+                // Keep the InMemory database name configurable so tests can isolate data per host and avoid cross-test collisions.
+                var inMemoryDatabaseName = configuration["InMemoryDatabaseName"] ?? "ApplicationDb";
                 services.AddDbContext<ApplicationDbContext>(options =>
-                    options.UseInMemoryDatabase("ApplicationDb"));
+                    options.UseInMemoryDatabase(inMemoryDatabaseName));
             }
             else
             {
@@ -46,6 +47,7 @@ namespace CleanArchitecture.Infrastructure
             services.AddTransient<ICampaignService, CampaignService>();
             services.AddTransient<IReviewService, ReviewService>();
             services.AddTransient<ISearchService, SearchService>();
+            services.AddTransient<IAdminService, AdminService>();
             #endregion
             services.Configure<JWTSettings>(configuration.GetSection("JWTSettings"));
             services.AddAuthentication(options =>
@@ -57,40 +59,47 @@ namespace CleanArchitecture.Infrastructure
                 {
                     o.RequireHttpsMetadata = false;
                     o.SaveToken = false;
+                    o.MapInboundClaims = false;
                     o.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuerSigningKey = true,
                         ValidateIssuer = true,
                         ValidateAudience = true,
                         ValidateLifetime = true,
-                        ClockSkew = TimeSpan.Zero,
+                        ClockSkew = TimeSpan.FromMinutes(5),
                         ValidIssuer = configuration["JWTSettings:Issuer"],
                         ValidAudience = configuration["JWTSettings:Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWTSettings:Key"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWTSettings:Key"])),
+                        RoleClaimType = "roles"
                     };
                     o.Events = new JwtBearerEvents()
                     {
                         OnAuthenticationFailed = c =>
                         {
+                            Serilog.Log.Warning("Authentication failed for {Path} from IP {IpAddress}: {Error}",
+                                c.Request.Path, c.HttpContext.Connection.RemoteIpAddress, c.Exception.Message);
                             c.NoResult();
-                            c.Response.StatusCode = 500;
-                            c.Response.ContentType = "text/plain";
-                            return c.Response.WriteAsync(c.Exception.ToString());
+                            c.Response.StatusCode = 401;
+                            c.Response.ContentType = "application/json";
+                            return c.Response.WriteAsync("{\"error\":\"AUTHENTICATION_FAILED\",\"message\":\"Token validation failed.\"}");
                         },
                         OnChallenge = context =>
                         {
+                            Serilog.Log.Warning("401 Unauthorized attempt on {Path} from IP {IpAddress}",
+                                context.Request.Path, context.HttpContext.Connection.RemoteIpAddress);
                             context.HandleResponse();
                             context.Response.StatusCode = 401;
                             context.Response.ContentType = "application/json";
-                            var result = "You are not Authorized";
-                            return context.Response.WriteAsync(result);
+                            return context.Response.WriteAsync("{\"error\":\"UNAUTHORIZED\",\"message\":\"You are not authorized.\"}");
                         },
                         OnForbidden = context =>
                         {
+                            Serilog.Log.Warning("403 Forbidden attempt on {Path} from IP {IpAddress}, User: {UserId}",
+                                context.Request.Path, context.HttpContext.Connection.RemoteIpAddress,
+                                context.HttpContext.User.FindFirst("uid")?.Value ?? "unknown");
                             context.Response.StatusCode = 403;
                             context.Response.ContentType = "application/json";
-                            var result = "You are not authorized to access this resource";
-                            return context.Response.WriteAsync(result);
+                            return context.Response.WriteAsync("{\"error\":\"FORBIDDEN\",\"message\":\"You are not authorized to access this resource.\"}");
                         },
                     };
                 });

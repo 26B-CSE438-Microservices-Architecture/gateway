@@ -25,6 +25,14 @@ Icon
 logs/
 *.log
 
+# Gecici test ve debug cikti dosyalari
+*_log.txt
+*_err.txt
+*_output.txt
+test_output.txt
+error_log.txt
+login_err.txt
+
 # Docker
 docker-compose.override.yml
 .env

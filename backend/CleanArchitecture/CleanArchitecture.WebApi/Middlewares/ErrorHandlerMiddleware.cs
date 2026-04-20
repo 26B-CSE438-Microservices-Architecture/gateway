@@ -1,4 +1,4 @@
-﻿using CleanArchitecture.Core.Exceptions;
+using CleanArchitecture.Core.Exceptions;
 using CleanArchitecture.Core.Wrappers;
 using Microsoft.AspNetCore.Http;
 using System;
@@ -40,7 +40,8 @@ namespace CleanArchitecture.WebApi.Middlewares
                         break;
                     case Core.Exceptions.ApiException e:
                         response.StatusCode = (int)HttpStatusCode.BadRequest;
-                        errorResponse = StandardErrorResponse.Create("BAD_REQUEST", e.Message, (int)HttpStatusCode.BadRequest);
+                        var code = string.IsNullOrEmpty(e.ErrorCode) ? "BAD_REQUEST" : e.ErrorCode;
+                        errorResponse = StandardErrorResponse.Create(code, e.Message, (int)HttpStatusCode.BadRequest);
                         break;
                     case ValidationException e:
                         response.StatusCode = (int)HttpStatusCode.BadRequest;
@@ -56,7 +57,7 @@ namespace CleanArchitecture.WebApi.Middlewares
                         break;
                     default:
                         response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                        errorResponse = StandardErrorResponse.Create("INTERNAL_SERVER_ERROR", "An unexpected error occurred.", (int)HttpStatusCode.InternalServerError);
+                        errorResponse = StandardErrorResponse.Create("INTERNAL_SERVER_ERROR", error.ToString(), (int)HttpStatusCode.InternalServerError);
                         break;
                 }
 

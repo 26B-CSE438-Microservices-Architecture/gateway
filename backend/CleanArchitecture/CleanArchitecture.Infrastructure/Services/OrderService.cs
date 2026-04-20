@@ -1,8 +1,8 @@
 using CleanArchitecture.Core.DTOs.Order;
-using CleanArchitecture.Core.DTOs.Review;
 using CleanArchitecture.Core.Exceptions;
 using CleanArchitecture.Core.Interfaces;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,164 +11,276 @@ namespace CleanArchitecture.Infrastructure.Services
 {
     public class OrderService : IOrderService
     {
-        private static readonly Dictionary<string, List<OrderDetailDto>> _orders = new();
+        private static readonly ConcurrentDictionary<string, CartResponse> _carts = new();
+        private static readonly ConcurrentDictionary<string, OrderResponse> _orders = new();
+        private static readonly ConcurrentDictionary<string, OrderResponse> _idempotencyKeys = new();
 
-        private static readonly AddressSnapshotDto _defaultAddressSnapshot = new AddressSnapshotDto
+        private static readonly List<CartItemDto> _mockProducts = new()
         {
-            AddressTitle = "Ev",
-            City = "Antalya",
-            District = "Kepez",
-            Neighborhood = "Kültür Mah",
-            Street = "3818 Sokak",
-            BuildingNo = "8",
-            Floor = "3",
-            ApartmentNo = "6",
-            AddressDescription = "Kapý zili çalýþmýyor",
-            Location = new OrderLocationDto { Lat = 36.884804, Lng = 30.704044 }
+            new CartItemDto { ProductId = "p_1", Name = "Margherita Pizza", Price = 120.0 },
+            new CartItemDto { ProductId = "p_2", Name = "Burger Menu", Price = 180.0 },
+            new CartItemDto { ProductId = "p_3", Name = "Coke 330ml", Price = 45.0 }
         };
 
-        public Task<CheckoutPreviewResponse> GetCheckoutPreviewAsync(string userId, CheckoutPreviewRequest request)
+        public Task<CartResponse> GetCartAsync(string userId)
         {
-            var itemsSubtotal = request.Items.Sum(i => i.Quantity * 210.0);
-            var deliveryFee = 24.9;
-            var serviceFee = 8.99;
-            var discountAmount = 40.0;
-            var total = itemsSubtotal + deliveryFee + serviceFee - discountAmount;
-
-            return Task.FromResult(new CheckoutPreviewResponse
-            {
-                ItemsSubtotal = itemsSubtotal,
-                DeliveryFee = deliveryFee,
-                ServiceFee = serviceFee,
-                DiscountAmount = discountAmount,
-                TotalAmount = Math.Round(total, 2)
-            });
+            return Task.FromResult(_carts.GetOrAdd(userId, _ => new CartResponse { Items = new(), TotalAmount = 0 }));
         }
 
-        public Task<CreateOrderResponse> CreateOrderAsync(string userId, CreateOrderRequest request)
+        public async Task<CartResponse> AddToCartAsync(string userId, AddCartItemRequest request)
         {
-            if (!_orders.ContainsKey(userId))
-                _orders[userId] = new List<OrderDetailDto>();
+            var cart = await GetCartAsync(userId);
+            var product = _mockProducts.FirstOrDefault(p => p.ProductId == request.ProductId);
+            
+            if (product == null) throw new NotFoundException("PRODUCT_NOT_FOUND", "Product not found");
 
-            var orderId = $"order_{Guid.NewGuid():N}".Substring(0, 12);
-            var totalPrice = request.Items.Sum(i => i.Quantity * 180.0);
-
-            var orderDetail = new OrderDetailDto
+            var existing = cart.Items.FirstOrDefault(i => i.ProductId == request.ProductId);
+            if (existing != null)
             {
-                Id = orderId,
-                Status = "PREPARING",
-                StatusLabel = "Sipariþ hazýrlanýyor",
-                EtaRange = $"{DateTime.Now.AddMinutes(25):HH:mm} - {DateTime.Now.AddMinutes(35):HH:mm}",
-                ActiveStepIndex = 1,
-                AddressSnapshot = _defaultAddressSnapshot,
-                Steps = new List<OrderStepDto>
-                {
-                    new OrderStepDto { Title = "Sipariþ alýndý", IsCompleted = true },
-                    new OrderStepDto { Title = "Hazýrlanýyor", IsCompleted = false },
-                    new OrderStepDto { Title = "Kurye yolda", IsCompleted = false },
-                    new OrderStepDto { Title = "Teslim edildi", IsCompleted = false }
-                }
-            };
-
-            _orders[userId].Add(orderDetail);
-
-            return Task.FromResult(new CreateOrderResponse
-            {
-                OrderId = orderId,
-                Message = "Order created successfully",
-                VendorId = request.VendorId,
-                Status = "preparing",
-                TotalPrice = Math.Round(totalPrice, 2),
-                AddressSnapshot = _defaultAddressSnapshot
-            });
-        }
-
-        public Task<PagedOrdersResponse> GetOrdersAsync(string userId, int page, int limit)
-        {
-            if (!_orders.ContainsKey(userId))
-            {
-                _orders[userId] = new List<OrderDetailDto>
-                {
-                    new OrderDetailDto
-                    {
-                        Id = "order_555",
-                        Status = "DELIVERED",
-                        StatusLabel = "Teslim edildi",
-                        EtaRange = "13:32 - 13:38",
-                        ActiveStepIndex = 3,
-                        AddressSnapshot = _defaultAddressSnapshot,
-                        Steps = new List<OrderStepDto>
-                        {
-                            new OrderStepDto { Title = "Sipariþ alýndý", IsCompleted = true },
-                            new OrderStepDto { Title = "Hazýrlanýyor", IsCompleted = true },
-                            new OrderStepDto { Title = "Kurye yolda", IsCompleted = true },
-                            new OrderStepDto { Title = "Teslim edildi", IsCompleted = true }
-                        }
-                    }
-                };
+                existing.Quantity += request.Quantity;
             }
-
-            var all = _orders[userId];
-            var paged = all.Skip((page - 1) * limit).Take(limit)
-                .Select(o => new OrderSummaryDto
+            else
+            {
+                cart.Items.Add(new CartItemDto
                 {
-                    Id = o.Id,
-                    VendorName = "Burger Point",
-                    Status = o.Status,
-                    TotalAmount = 413.89,
-                    DateLabel = "Bugün 13:05",
-                    AddressSnapshot = o.AddressSnapshot,
-                    ItemSummary = "Double Smash Burger x2",
-                    DeliveredItemCount = 2
-                })
-                .ToList();
-
-            return Task.FromResult(new PagedOrdersResponse
-            {
-                Page = page,
-                Limit = limit,
-                Total = all.Count,
-                Data = paged
-            });
-        }
-
-        public Task<OrderDetailDto> GetOrderByIdAsync(string userId, string orderId)
-        {
-            if (_orders.ContainsKey(userId))
-            {
-                var order = _orders[userId].FirstOrDefault(o => o.Id == orderId);
-                if (order != null)
-                    return Task.FromResult(order);
-            }
-
-            // Return mock for well-known order_555
-            if (orderId == "order_555")
-            {
-                return Task.FromResult(new OrderDetailDto
-                {
-                    Id = "order_555",
-                    Status = "DELIVERING",
-                    StatusLabel = "Kurye yolda",
-                    EtaRange = "13:32 - 13:38",
-                    ActiveStepIndex = 2,
-                    AddressSnapshot = _defaultAddressSnapshot,
-                    Steps = new List<OrderStepDto>
-                    {
-                        new OrderStepDto { Title = "Sipariþ alýndý", IsCompleted = true },
-                        new OrderStepDto { Title = "Hazýrlanýyor", IsCompleted = true },
-                        new OrderStepDto { Title = "Kurye yolda", IsCompleted = false },
-                        new OrderStepDto { Title = "Teslim edildi", IsCompleted = false }
-                    }
+                    ProductId = product.ProductId,
+                    Name = product.Name,
+                    Price = product.Price,
+                    Quantity = request.Quantity
                 });
             }
 
-            throw new NotFoundException("ORDER_NOT_FOUND", "Order not found");
+            RecalculateCart(cart);
+            return cart;
         }
 
-        public Task SubmitRatingAsync(string userId, string orderId, SubmitRatingRequest request)
+        public async Task<CartResponse> UpdateCartItemAsync(string userId, string productId, UpdateCartItemRequest request)
         {
-            // Mock: rating stored (no-op for now)
+            var cart = await GetCartAsync(userId);
+            var item = cart.Items.FirstOrDefault(i => i.ProductId == productId);
+            if (item == null) throw new NotFoundException("ITEM_NOT_FOUND", "Item not found in cart");
+
+            if (request.Quantity <= 0)
+            {
+                cart.Items.Remove(item);
+            }
+            else
+            {
+                item.Quantity = request.Quantity;
+            }
+
+            RecalculateCart(cart);
+            return cart;
+        }
+
+        public async Task<CartResponse> RemoveFromCartAsync(string userId, string productId)
+        {
+            var cart = await GetCartAsync(userId);
+            var item = cart.Items.FirstOrDefault(i => i.ProductId == productId);
+            if (item != null)
+            {
+                cart.Items.Remove(item);
+            }
+
+            RecalculateCart(cart);
+            return cart;
+        }
+
+        public Task ClearCartAsync(string userId)
+        {
+            _carts[userId] = new CartResponse { Items = new(), TotalAmount = 0 };
             return Task.CompletedTask;
+        }
+
+        public async Task<OrderResponse> CheckoutAsync(string userId, CheckoutRequest request, string idempotencyKey)
+        {
+            if (string.IsNullOrEmpty(idempotencyKey))
+                throw new ApiException("MISSING_IDEMPOTENCY_KEY", "Idempotency-Key header is required.");
+
+            if (_idempotencyKeys.TryGetValue(idempotencyKey, out var existing))
+            {
+                return existing;
+            }
+
+            var cart = await GetCartAsync(userId);
+            if (!cart.Items.Any()) throw new ApiException("CART_EMPTY", "Cannot checkout an empty cart.");
+
+            var orderId = $"ord_{Guid.NewGuid():N}".Substring(0, 16);
+            var order = new OrderResponse
+            {
+                OrderId = orderId,
+                UserId = userId,
+                Status = "PAYMENT_PENDING",
+                TotalAmount = cart.TotalAmount,
+                Items = cart.Items.Select(i => new OrderItemDto
+                {
+                    Id = $"itm_{Guid.NewGuid():N}".Substring(0, 8),
+                    Name = i.Name,
+                    Price = i.Price,
+                    Quantity = i.Quantity
+                }).ToList(),
+                DeliveryAddress = request.DeliveryAddress,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _orders[orderId] = order;
+            _idempotencyKeys[idempotencyKey] = order;
+            
+            await ClearCartAsync(userId);
+
+            return order;
+        }
+
+        public Task<OrderResponse> GetOrderByIdAsync(string userId, string orderId)
+        {
+            if (!_orders.TryGetValue(orderId, out var order))
+                throw new NotFoundException("ORDER_NOT_FOUND", "Order not found");
+
+            return Task.FromResult(order);
+        }
+
+        public Task<PagedResponse<OrderResponse>> GetMyOrdersAsync(string userId, string status, int page, int size)
+        {
+            var query = _orders.Values.Where(o => o.UserId == userId);
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(o => o.Status == status);
+            }
+
+            var results = query
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip(page * size)
+                .Take(size)
+                .ToList();
+
+            return Task.FromResult(new PagedResponse<OrderResponse>
+            {
+                Page = page,
+                Size = size,
+                Total = query.Count(),
+                Data = results
+            });
+        }
+
+        public async Task<OrderResponse> CancelOrderAsync(string userId, string orderId)
+        {
+            var order = await GetOrderByIdAsync(userId, orderId);
+            
+            if (order.Status == "DELIVERED" || order.Status == "CANCELLED" || order.Status == "PAID" || order.Status == "PAYMENT_CAPTURE_PENDING")
+                throw new ApiException("INVALID_STATE", $"Cannot cancel order in status {order.Status}");
+
+            order.Status = "CANCELLED";
+            order.UpdatedAt = DateTime.UtcNow;
+            return order;
+        }
+
+        public async Task<CartResponse> ReorderAsync(string userId, string orderId)
+        {
+            var order = await GetOrderByIdAsync(userId, orderId);
+            await ClearCartAsync(userId);
+            
+            foreach (var item in order.Items)
+            {
+                await AddToCartAsync(userId, new AddCartItemRequest { ProductId = "p_1", Quantity = item.Quantity });
+            }
+
+            return await GetCartAsync(userId);
+        }
+
+        public async Task<OrderResponse> RequestRefundAsync(string userId, string orderId)
+        {
+            var order = await GetOrderByIdAsync(userId, orderId);
+            if (order.Status != "PAID" && order.Status != "DELIVERED")
+                throw new ApiException("REFUND_NOT_ALLOWED", "Only PAID or DELIVERED orders can be refunded.");
+
+            order.Status = "REFUND_REQUESTED";
+            order.UpdatedAt = DateTime.UtcNow;
+            return order;
+        }
+
+        public Task<PagedResponse<OrderResponse>> GetRestaurantOrdersAsync(string restaurantId, string status, int page, int size)
+        {
+            var query = _orders.Values.AsQueryable();
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(o => o.Status == status);
+            }
+
+            var results = query
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip(page * size)
+                .Take(size)
+                .ToList();
+
+            return Task.FromResult(new PagedResponse<OrderResponse>
+            {
+                Page = page,
+                Size = size,
+                Total = query.Count(),
+                Data = results
+            });
+        }
+
+        public async Task<OrderResponse> ConfirmOrderAsync(string restaurantId, string orderId)
+        {
+            var order = await GetOrderByIdAsync("system", orderId);
+            if (order.Status != "PAYMENT_HELD")
+                throw new ApiException("INVALID_STATE", "Order must be in PAYMENT_HELD state to be confirmed.");
+
+            order.Status = "PAYMENT_CAPTURE_PENDING";
+            order.UpdatedAt = DateTime.UtcNow;
+            
+            await ProcessPaymentCallbackAsync(orderId, "CAPTURE_COMPLETED");
+            
+            return order;
+        }
+
+        public async Task<OrderResponse> RejectOrderAsync(string restaurantId, string orderId)
+        {
+            var order = await GetOrderByIdAsync("system", orderId);
+            order.Status = "CANCELLED";
+            order.UpdatedAt = DateTime.UtcNow;
+            return order;
+        }
+
+        public async Task<OrderResponse> UpdateOrderStatusAsync(string restaurantId, string orderId, string status)
+        {
+            var order = await GetOrderByIdAsync("system", orderId);
+            order.Status = status;
+            order.UpdatedAt = DateTime.UtcNow;
+            return order;
+        }
+
+        public async Task<OrderResponse> ProcessPaymentCallbackAsync(string orderId, string status)
+        {
+            if (!_orders.TryGetValue(orderId, out var order))
+                throw new NotFoundException("ORDER_NOT_FOUND", "Order not found");
+
+            switch (status)
+            {
+                case "HOLD_CONFIRMED":
+                    order.Status = "PAYMENT_HELD";
+                    break;
+                case "HOLD_FAILED":
+                    order.Status = "CANCELLED";
+                    break;
+                case "CAPTURE_COMPLETED":
+                    order.Status = "PAID";
+                    break;
+                case "CAPTURE_FAILED":
+                    order.Status = "CANCELLED";
+                    break;
+            }
+
+            order.UpdatedAt = DateTime.UtcNow;
+            await Task.Yield(); 
+            return order;
+        }
+
+        private void RecalculateCart(CartResponse cart)
+        {
+            cart.TotalAmount = Math.Round(cart.Items.Sum(i => i.Subtotal), 2);
         }
     }
 }
