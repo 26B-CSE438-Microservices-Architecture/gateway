@@ -1,4 +1,5 @@
 using CleanArchitecture.Core.DTOs.Vendor;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace CleanArchitecture.Core.Interfaces
@@ -8,6 +9,9 @@ namespace CleanArchitecture.Core.Interfaces
         Task<PagedVendorsResponse> GetVendorsAsync(int page, int limit);
         Task<VendorDetailDto> GetVendorByIdAsync(string vendorId);
         Task<PagedVendorsResponse> GetNearbyVendorsAsync(double lat, double lng, double radiusKm);
+        
+        // Internal Lookup
+        Task<List<VendorLookupItemDto>> LookupVendorsAsync(List<string> vendorIds);
         
         // Managing Restaurants (Owner side)
         Task<string> CreateVendorAsync(CreateVendorDto request);

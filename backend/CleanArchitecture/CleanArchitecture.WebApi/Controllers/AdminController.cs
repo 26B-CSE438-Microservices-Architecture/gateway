@@ -8,32 +8,52 @@ namespace CleanArchitecture.WebApi.Controllers
 {
     [Route("api/v1/admin")]
     [ApiController]
-    [Authorize(Roles = "SysAdmin")]
+    [Authorize(Roles = "SysAdmin,Admin")] // Aligning with common admin roles
     public class AdminController : ControllerBase
     {
-        private readonly IAdminService _adminService;
+        private readonly IUserService _userService;
 
-        public AdminController(IAdminService adminService)
+        public AdminController(IUserService userService)
         {
-            _adminService = adminService;
+            _userService = userService;
         }
 
         /// <summary>
-        /// Lists all registered users with pagination. SysAdmin only.
+        /// List all users (paginated).
         /// </summary>
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers([FromQuery] int page = 1, [FromQuery] int limit = 20)
         {
-            return Ok(await _adminService.GetAllUsersAsync(page, limit));
+            return Ok(await _userService.GetAllUsersAdminAsync(page, limit));
         }
 
         /// <summary>
-        /// Assigns a role to a specific user. SysAdmin only.
+        /// Get any user by ID.
         /// </summary>
-        [HttpPut("users/{id}/role")]
-        public async Task<IActionResult> AssignRole(string id, [FromBody] AssignRoleRequest request)
+        [HttpGet("users/{id}")]
+        public async Task<IActionResult> GetUserById(string id)
         {
-            return Ok(await _adminService.AssignRoleAsync(id, request));
+            return Ok(await _userService.GetInternalUserByIdAsync(id));
+        }
+
+        /// <summary>
+        /// Soft delete — marks user as deactivated.
+        /// </summary>
+        [HttpPatch("users/{id}/deactivate")]
+        public async Task<IActionResult> DeactivateUser(string id)
+        {
+            await _userService.DeactivateUserAsync(id);
+            return Ok(new { message = "User deactivated successfully" });
+        }
+
+        /// <summary>
+        /// Re-activate a user account.
+        /// </summary>
+        [HttpPatch("users/{id}/activate")]
+        public async Task<IActionResult> ActivateUser(string id)
+        {
+            await _userService.ActivateUserAsync(id);
+            return Ok(new { message = "User activated successfully" });
         }
     }
 }

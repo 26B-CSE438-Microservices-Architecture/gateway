@@ -6,12 +6,22 @@
     <members>
         <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.GetAllUsers(System.Int32,System.Int32)">
             <summary>
-            Lists all registered users with pagination. SysAdmin only.
+            List all users (paginated).
             </summary>
         </member>
-        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.AssignRole(System.String,CleanArchitecture.Core.DTOs.Admin.AssignRoleRequest)">
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.GetUserById(System.String)">
             <summary>
-            Assigns a role to a specific user. SysAdmin only.
+            Get any user by ID.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.DeactivateUser(System.String)">
+            <summary>
+            Soft delete — marks user as deactivated.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.AdminController.ActivateUser(System.String)">
+            <summary>
+            Re-activate a user account.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.GetCurrentUser">
@@ -22,6 +32,66 @@
         <member name="M:CleanArchitecture.WebApi.Controllers.AuthController.VerifyToken(CleanArchitecture.Core.DTOs.Account.VerifyTokenRequest)">
             <summary>
             Validates a JWT token via REST. Returns validity status, user id and roles.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.GetUserById(System.String)">
+            <summary>
+            Fetch basic user profile by ID. Used by Order and Payment services.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.BulkLookup(CleanArchitecture.WebApi.Controllers.UserLookupRequest)">
+            <summary>
+            Bulk fetch multiple users by a list of IDs.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.GetUserByEmail(System.String)">
+            <summary>
+            Look up a user by email address. Used by Gateway/Auth for credential verification.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.InternalVendorsController.BulkLookup(CleanArchitecture.Core.DTOs.Vendor.VendorLookupRequest)">
+            <summary>
+            Bulk fetch vendor details (name, image_url) by IDs.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.GetProfile">
+            <summary>
+            Get the authenticated user's own profile.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.UpdateProfile(CleanArchitecture.Core.DTOs.User.UserUpdateProfileRequest)">
+            <summary>
+            Update the authenticated user's own profile (name, phone only).
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.GetAddresses">
+            <summary>
+            List all saved addresses of the authenticated user.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.CreateAddress(CleanArchitecture.Core.DTOs.User.CreateAddressRequest)">
+            <summary>
+            Add a new delivery address.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.DeleteAddress(System.String)">
+            <summary>
+            Remove a delivery address.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.GetFavorites(System.Int32,System.Int32)">
+            <summary>
+            Get favorites with details aggregated from User and Restaurant services.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.AddFavorite(System.String)">
+            <summary>
+            Add a vendor to favorites.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.RemoveFavorite(System.String)">
+            <summary>
+            Remove a vendor from favorites.
             </summary>
         </member>
         <member name="T:CleanArchitecture.WebApi.Grpc.AuthReflection">

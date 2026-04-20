@@ -19,81 +19,11 @@ namespace CleanArchitecture.Infrastructure.Services
                 Rating = 4.7,
                 ReviewCount = 1280,
                 DistanceKm = 2.4,
-                CampaignBadges = new List<string> { "30 TL indirim", "�cretsiz teslimat" },
+                CampaignBadges = new List<string> { "30 TL indirim", "Ücretsiz teslimat" },
+                LogoUrl = "https://cdn.app.com/burger_logo.png",
                 WorkingHours = new WorkingHoursDto { Open = "10:00", Close = "02:00", IsOpen = true },
                 DeliveryInfo = new DeliveryInfoDto { EtaRange = "20-30 dk", MinimumBasketAmount = 180, DeliveryFee = 24.9 },
-                MenuSections = new List<MenuSectionDto>
-                {
-                    new MenuSectionDto
-                    {
-                        Id = "section_1",
-                        Title = "Burger Men�ler",
-                        Products = new List<ProductDto>
-                        {
-                            new ProductDto
-                            {
-                                Id = "prod_1",
-                                Name = "Double Smash Burger",
-                                Description = "�ift k�fte cheddar peynir",
-                                Price = 210,
-                                Badge = "En �ok Satan",
-                                ImageUrl = "https://cdn.app.com/burger.png",
-                                IsAvailable = true,
-                                Allergens = new List<string> { "gluten", "dairy" },
-                                Calories = 820,
-                                OptionGroups = new List<OptionGroupDto>
-                                {
-                                    new OptionGroupDto
-                                    {
-                                        Id = "drink",
-                                        Title = "��ecek Se�imi",
-                                        IsRequired = true,
-                                        MaxSelections = 1,
-                                        Options = new List<OptionItemDto>
-                                        {
-                                            new OptionItemDto { Name = "Kola", Price = 0 },
-                                            new OptionItemDto { Name = "Ayran", Price = 5 }
-                                        }
-                                    }
-                                }
-                            },
-                            new ProductDto
-                            {
-                                Id = "prod_2",
-                                Name = "Classic Burger",
-                                Description = "Klasik burger, marul, domates, �zel sos",
-                                Price = 160,
-                                Badge = null,
-                                ImageUrl = "https://cdn.app.com/classic.png",
-                                IsAvailable = true,
-                                Allergens = new List<string> { "gluten" },
-                                Calories = 650,
-                                OptionGroups = new List<OptionGroupDto>()
-                            }
-                        }
-                    },
-                    new MenuSectionDto
-                    {
-                        Id = "section_2",
-                        Title = "Yanlar",
-                        Products = new List<ProductDto>
-                        {
-                            new ProductDto
-                            {
-                                Id = "prod_3",
-                                Name = "Patates K�zartmas�",
-                                Description = "��t�r patates",
-                                Price = 60,
-                                Badge = null,
-                                ImageUrl = "https://cdn.app.com/fries.png",
-                                IsAvailable = true,
-                                Allergens = new List<string>(),
-                                Calories = 380,
-                                OptionGroups = new List<OptionGroupDto>()
-                            }
-                        }
-                    }
-                }
+                MenuSections = new List<MenuSectionDto>()
             },
             new VendorDetailDto
             {
@@ -103,45 +33,10 @@ namespace CleanArchitecture.Infrastructure.Services
                 Rating = 4.5,
                 ReviewCount = 980,
                 DistanceKm = 1.8,
-                CampaignBadges = new List<string> { "�lk sipari�e %20 indirim" },
+                LogoUrl = "https://cdn.app.com/pizza_logo.png",
+                CampaignBadges = new List<string> { "İlk siparişe %20 indirim" },
                 WorkingHours = new WorkingHoursDto { Open = "11:00", Close = "23:30", IsOpen = true },
                 DeliveryInfo = new DeliveryInfoDto { EtaRange = "25-35 dk", MinimumBasketAmount = 150, DeliveryFee = 19.9 },
-                MenuSections = new List<MenuSectionDto>
-                {
-                    new MenuSectionDto
-                    {
-                        Id = "section_3",
-                        Title = "Pizzalar",
-                        Products = new List<ProductDto>
-                        {
-                            new ProductDto
-                            {
-                                Id = "prod_4",
-                                Name = "Margherita",
-                                Description = "Domates sos, mozzarella",
-                                Price = 180,
-                                Badge = null,
-                                ImageUrl = "https://cdn.app.com/margherita.png",
-                                IsAvailable = true,
-                                Allergens = new List<string> { "gluten", "dairy" },
-                                Calories = 720,
-                                OptionGroups = new List<OptionGroupDto>()
-                            }
-                        }
-                    }
-                }
-            },
-            new VendorDetailDto
-            {
-                Id = "vendor_103",
-                Name = "Komagene �i� K�fte",
-                Kind = "RESTAURANT",
-                Rating = 4.3,
-                ReviewCount = 560,
-                DistanceKm = 0.9,
-                CampaignBadges = new List<string>(),
-                WorkingHours = new WorkingHoursDto { Open = "09:00", Close = "00:00", IsOpen = true },
-                DeliveryInfo = new DeliveryInfoDto { EtaRange = "15-25 dk", MinimumBasketAmount = 80, DeliveryFee = 0 },
                 MenuSections = new List<MenuSectionDto>()
             }
         };
@@ -172,7 +67,6 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public Task<PagedVendorsResponse> GetNearbyVendorsAsync(double lat, double lng, double radiusKm)
         {
-            // Simple mock: return all vendors as they are nearby in mock
             var data = _vendors.Select(v => (VendorSummaryDto)v).ToList();
             return Task.FromResult(new PagedVendorsResponse
             {
@@ -181,6 +75,19 @@ namespace CleanArchitecture.Infrastructure.Services
                 Total = data.Count,
                 Data = data
             });
+        }
+
+        public Task<List<VendorLookupItemDto>> LookupVendorsAsync(List<string> vendorIds)
+        {
+            return Task.FromResult(_vendors
+                .Where(v => vendorIds.Contains(v.Id))
+                .Select(v => new VendorLookupItemDto
+                {
+                    VendorId = v.Id,
+                    Name = v.Name,
+                    ImageUrl = v.LogoUrl // Using LogoUrl as image_url for mobile
+                })
+                .ToList());
         }
 
         public Task<string> CreateVendorAsync(CreateVendorDto request)
