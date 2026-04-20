@@ -51,7 +51,37 @@
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.InternalVendorsController.BulkLookup(CleanArchitecture.Core.DTOs.Vendor.VendorLookupRequest)">
             <summary>
-            Bulk fetch vendor details (name, image_url) by IDs.
+            Bulk fetch vendor details (name, image_url) by IDs. Used by Gateway/BFF for composition.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.InitializePayment(CleanArchitecture.Core.DTOs.Payment.PaymentInitRequest)">
+            <summary>
+            Initialize a payment and get the iyzico Checkout Form.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.ProcessCallback(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCallbackRequest)">
+            <summary>
+            Callback called after user completes the iyzico hosted form.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.CapturePayment(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCaptureRequest)">
+            <summary>
+            Capture funds for an authorized payment.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.CancelPayment(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCancelRequest)">
+            <summary>
+            Cancel (Void or Refund) a payment.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.GetPayment(System.String)">
+            <summary>
+            Get payment details by ID.
+            </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.GetPaymentsByOrder(System.String)">
+            <summary>
+            Get all payments for an order.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.UsersController.GetProfile">

@@ -9,7 +9,6 @@ namespace CleanArchitecture.WebApi.Controllers
 {
     [Route("api/v1/payments")]
     [ApiController]
-    [Authorize]
     public class PaymentsController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
@@ -19,34 +18,77 @@ namespace CleanArchitecture.WebApi.Controllers
             _paymentService = paymentService;
         }
 
-        [HttpGet("methods")]
-        public async Task<IActionResult> GetPaymentMethods()
+        /// <summary>
+        /// Initialize a payment and get the iyzico Checkout Form.
+        /// </summary>
+        [Authorize]
+        [HttpPost]
+        public async Task<IActionResult> InitializePayment([FromBody] PaymentInitRequest request)
         {
             var userId = User.FindFirstValue("uid");
-            return Ok(await _paymentService.GetPaymentMethodsAsync(userId));
+            var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
+            
+            var result = await _paymentService.InitializePaymentAsync(userId, request, idempotencyKey);
+            
+            // Per README: A failed payment still returns 201 because the record was created.
+            return CreatedAtAction(nameof(GetPayment), new { id = result.Payment.Id }, result);
         }
 
-        [HttpPost("cards")]
-        public async Task<IActionResult> AddCard([FromBody] AddCardRequest request)
+        /// <summary>
+        /// Callback called after user completes the iyzico hosted form.
+        /// </summary>
+        [HttpPost("{id}/checkout-form/callback")]
+        public async Task<IActionResult> ProcessCallback(string id, [FromBody] PaymentCallbackRequest request)
         {
-            var userId = User.FindFirstValue("uid");
-            var result = await _paymentService.AddCardAsync(userId, request);
-            return StatusCode(201, result);
+            var result = await _paymentService.ProcessCallbackAsync(id, request.Token);
+            return Ok(new { payment = result });
         }
 
-        [HttpDelete("cards/{id}")]
-        public async Task<IActionResult> DeleteCard(string id)
+        /// <summary>
+        /// Capture funds for an authorized payment.
+        /// </summary>
+        [Authorize]
+        [HttpPost("{id}/capture")]
+        public async Task<IActionResult> CapturePayment(string id, [FromBody] PaymentCaptureRequest request)
         {
-            var userId = User.FindFirstValue("uid");
-            await _paymentService.DeleteCardAsync(userId, id);
-            return Ok(new { message = "Card deleted" });
+            var result = await _paymentService.CapturePaymentAsync(id, request.Amount);
+            return Ok(new { payment = result });
         }
 
-        [HttpPost("intent")]
-        public async Task<IActionResult> CreatePaymentIntent([FromBody] PaymentIntentRequest request)
+        /// <summary>
+        /// Cancel (Void or Refund) a payment.
+        /// </summary>
+        [Authorize]
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> CancelPayment(string id, [FromBody] PaymentCancelRequest request)
         {
-            var userId = User.FindFirstValue("uid");
-            return Ok(await _paymentService.CreatePaymentIntentAsync(userId, request));
+            var result = await _paymentService.CancelPaymentAsync(id, request.Reason);
+            return Ok(new { payment = result });
+        }
+
+        /// <summary>
+        /// Get payment details by ID.
+        /// </summary>
+        [Authorize]
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetPayment(string id)
+        {
+            var result = await _paymentService.GetPaymentByIdAsync(id);
+            return Ok(new { payment = result });
+        }
+
+        /// <summary>
+        /// Get all payments for an order.
+        /// </summary>
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> GetPaymentsByOrder([FromQuery] string orderId)
+        {
+            if (string.IsNullOrEmpty(orderId))
+                return BadRequest(new { error = "INVALID_REQUEST", message = "orderId query parameter is required." });
+
+            var results = await _paymentService.GetPaymentsByOrderIdAsync(orderId);
+            return Ok(new { payments = results });
         }
     }
 }

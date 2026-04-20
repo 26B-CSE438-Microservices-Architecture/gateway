@@ -1,68 +1,106 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace CleanArchitecture.Core.DTOs.Payment
 {
-    public class PaymentMethodsResponse
+    public class PaymentInitRequest
     {
-        [JsonPropertyName("wallet_balance")]
-        public double WalletBalance { get; set; }
-
-        [JsonPropertyName("saved_cards")]
-        public List<SavedCardDto> SavedCards { get; set; }
-    }
-
-    public class SavedCardDto
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; }
-
-        [JsonPropertyName("title")]
-        public string Title { get; set; }
-
-        [JsonPropertyName("detail")]
-        public string Detail { get; set; }
-
-        [JsonPropertyName("is_default")]
-        public bool IsDefault { get; set; }
-    }
-
-    public class AddCardRequest
-    {
-        [JsonPropertyName("card_number")]
-        public string CardNumber { get; set; }
-
-        [JsonPropertyName("expire_month")]
-        public string ExpireMonth { get; set; }
-
-        [JsonPropertyName("expire_year")]
-        public string ExpireYear { get; set; }
-
-        [JsonPropertyName("cvv")]
-        public string Cvv { get; set; }
-    }
-
-    public class AddCardResponse
-    {
-        [JsonPropertyName("card_id")]
-        public string CardId { get; set; }
-
-        [JsonPropertyName("message")]
-        public string Message { get; set; }
-    }
-
-    public class PaymentIntentRequest
-    {
-        [JsonPropertyName("order_id")]
+        [JsonPropertyName("orderId")]
         public string OrderId { get; set; }
 
-        [JsonPropertyName("payment_method_id")]
-        public string PaymentMethodId { get; set; }
+        [JsonPropertyName("amount")]
+        public int Amount { get; set; } // Minor units (kuruş)
+
+        [JsonPropertyName("currency")]
+        public string Currency { get; set; } = "TRY";
+
+        [JsonPropertyName("paymentMethod")]
+        public string PaymentMethod { get; set; } = "card";
+
+        [JsonPropertyName("buyer")]
+        public BuyerDto Buyer { get; set; }
+
+        [JsonPropertyName("items")]
+        public List<PaymentItemDto> Items { get; set; }
+
+        [JsonPropertyName("callbackUrl")]
+        public string CallbackUrl { get; set; }
     }
 
-    public class PaymentIntentResponse
+    public class BuyerDto
     {
-        [JsonPropertyName("client_secret")]
-        public string ClientSecret { get; set; }
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string Surname { get; set; }
+        public string Email { get; set; }
+        public string IdentityNumber { get; set; }
+        public string GsmNumber { get; set; }
+        public string RegistrationAddress { get; set; }
+        public string Ip { get; set; }
+        public string City { get; set; }
+        public string Country { get; set; }
+        public string ZipCode { get; set; }
+    }
+
+    public class PaymentItemDto
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string Category1 { get; set; }
+        public string ItemType { get; set; } = "PHYSICAL";
+        public string Price { get; set; } // Major units as string, e.g. "150.00"
+    }
+
+    public class PaymentResponse
+    {
+        public string Id { get; set; }
+        public string OrderId { get; set; }
+        public string UserId { get; set; }
+        public string Status { get; set; }
+        public int Amount { get; set; }
+        public string Currency { get; set; }
+        public string Provider { get; set; } = "iyzico";
+        public string ProviderTxId { get; set; }
+        public string FailureReason { get; set; }
+        public string CancelReason { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? AuthorizedAt { get; set; }
+        public DateTime? CapturedAt { get; set; }
+        public DateTime? CancelledAt { get; set; }
+    }
+
+    public class CheckoutFormDetails
+    {
+        public string Token { get; set; }
+        public string Content { get; set; } // Base64 HTML
+        public string PaymentPageUrl { get; set; }
+    }
+
+    public class PaymentInitResponse
+    {
+        [JsonPropertyName("payment")]
+        public PaymentResponse Payment { get; set; }
+
+        [JsonPropertyName("checkoutForm")]
+        public CheckoutFormDetails CheckoutForm { get; set; }
+    }
+
+    public class PaymentCallbackRequest
+    {
+        [JsonPropertyName("token")]
+        public string Token { get; set; }
+    }
+
+    public class PaymentCaptureRequest
+    {
+        [JsonPropertyName("amount")]
+        public int Amount { get; set; }
+    }
+
+    public class PaymentCancelRequest
+    {
+        [JsonPropertyName("reason")]
+        public string Reason { get; set; }
     }
 }

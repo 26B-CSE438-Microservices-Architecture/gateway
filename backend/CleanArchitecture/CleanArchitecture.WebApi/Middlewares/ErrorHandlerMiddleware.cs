@@ -40,7 +40,8 @@ namespace CleanArchitecture.WebApi.Middlewares
                         break;
                     case Core.Exceptions.ApiException e:
                         response.StatusCode = (int)HttpStatusCode.BadRequest;
-                        errorResponse = StandardErrorResponse.Create("BAD_REQUEST", e.Message, (int)HttpStatusCode.BadRequest);
+                        var code = string.IsNullOrEmpty(e.ErrorCode) ? "BAD_REQUEST" : e.ErrorCode;
+                        errorResponse = StandardErrorResponse.Create(code, e.Message, (int)HttpStatusCode.BadRequest);
                         break;
                     case ValidationException e:
                         response.StatusCode = (int)HttpStatusCode.BadRequest;
