@@ -103,6 +103,7 @@ else
 app.UseHttpsRedirection();
 
 app.UseErrorHandlingMiddleware();
+app.UseMiddleware<InternalAccessBlockerMiddleware>();
 
 app.UseRouting();
 app.UseRateLimiter();
