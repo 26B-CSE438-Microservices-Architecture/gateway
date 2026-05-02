@@ -45,6 +45,32 @@ builder.Services.AddHealthChecks()
     .AddRedis(builder.Configuration.GetConnectionString("RedisConnection") ?? "localhost:6379,abortConnect=false", name: "Redis");
 builder.Services.AddScoped<IAuthenticatedUserService, AuthenticatedUserService>();
 
+// IHttpContextAccessor — proxy servisler mevcut isteğin header'larına erişmek için buna ihtiyaç duyar
+builder.Services.AddHttpContextAccessor();
+
+// Named HttpClient registrations for downstream microservices
+var serviceSettings = builder.Configuration.GetSection("Services");
+builder.Services.AddHttpClient("user", c =>
+{
+    c.BaseAddress = new Uri(serviceSettings["UserService"] ?? "http://user-service:8000");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient("order", c =>
+{
+    c.BaseAddress = new Uri(serviceSettings["OrderService"] ?? "http://order-service:8082");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient("restaurant", c =>
+{
+    c.BaseAddress = new Uri(serviceSettings["RestaurantService"] ?? "http://restaurant-service:5001");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient("payment", c =>
+{
+    c.BaseAddress = new Uri(serviceSettings["PaymentService"] ?? "http://payment-service:3000");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+
 // Rate Limiting — IP tabanlı, dakikada 100 istek limiti
 builder.Services.AddRateLimiter(options =>
 {
@@ -103,7 +129,7 @@ else
 app.UseHttpsRedirection();
 
 app.UseErrorHandlingMiddleware();
-
+app.UsePathBase("/cse438");
 app.UseRouting();
 app.UseRateLimiter();
 

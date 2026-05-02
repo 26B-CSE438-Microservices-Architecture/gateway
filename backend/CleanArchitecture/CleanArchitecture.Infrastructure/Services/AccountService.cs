@@ -33,13 +33,16 @@ namespace CleanArchitecture.Infrastructure.Services
         private readonly JWTSettings _jwtSettings;
         private readonly IDateTimeService _dateTimeService;
         private readonly ApplicationDbContext _dbContext;
+        private readonly IUserService _userService;
+
         public AccountService(UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             IOptions<JWTSettings> jwtSettings,
             IDateTimeService dateTimeService,
             SignInManager<ApplicationUser> signInManager,
             IEmailService emailService,
-            ApplicationDbContext dbContext)
+            ApplicationDbContext dbContext,
+            IUserService userService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -48,6 +51,7 @@ namespace CleanArchitecture.Infrastructure.Services
             _signInManager = signInManager;
             this._emailService = emailService;
             _dbContext = dbContext;
+            _userService = userService;
         }
 
         public async Task<AuthenticationResponse> LoginAsync(AuthenticationRequest request, string ipAddress)
@@ -142,40 +146,41 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public async Task<RegisterResponse> RegisterAsync(RegisterRequest request, string origin)
         {
+            var userWithSameEmail = await _userManager.FindByEmailAsync(request.Email);
+            if (userWithSameEmail != null)
+            {
+                throw new ApiException($"Email {request.Email} is already registered.");
+            }
+
+            // 1. Create the user in the User Service (Source of Truth)
+            var externalId = await _userService.RegisterUserInServiceAsync(request);
+
+            // 2. Create the user in the Gateway's local Identity database
             var user = new ApplicationUser
             {
+                Id = externalId, // Sync IDs!
                 Email = request.Email,
                 FirstName = request.Name,
                 LastName = request.Surname,
-                UserName = request.Email, // Using email as username for simplicity or as desired
+                UserName = request.Email,
                 PhoneNumber = request.PhoneNumber,
                 EmailConfirmed = true
             };
-            var userWithSameEmail = await _userManager.FindByEmailAsync(request.Email);
-            if (userWithSameEmail == null)
+            
+            var result = await _userManager.CreateAsync(user, request.Password);
+            if (result.Succeeded)
             {
-                var result = await _userManager.CreateAsync(user, request.Password);
-                if (result.Succeeded)
+                await _userManager.AddToRoleAsync(user, Roles.Customer.ToString());
+                return new RegisterResponse
                 {
-                    await _userManager.AddToRoleAsync(user, Roles.Customer.ToString());
-                    // Skip verification for now as per simple register response requirement
-                    // var verificationUri = await SendVerificationEmail(user, origin);
-                    
-                    return new RegisterResponse
-                    {
-                        Message = "User registered successfully",
-                        UserId = user.Id
-                    };
-                }
-                else
-                {
-                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                    throw new ApiException($"{errors}");
-                }
+                    Message = "User registered successfully",
+                    UserId = user.Id
+                };
             }
             else
             {
-                throw new ApiException($"Email {request.Email } is already registered.");
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new ApiException($"{errors}");
             }
         }
 

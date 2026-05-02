@@ -32,6 +32,7 @@ namespace CleanArchitecture.UnitTests.Services
         private readonly Mock<IDateTimeService> _dateTimeServiceMock;
         private readonly IOptions<JWTSettings> _jwtSettings;
         private readonly ApplicationDbContext _dbContext;
+        private readonly Mock<IUserService> _userServiceMock;
         private readonly AccountService _accountService;
 
         public AccountServiceTests()
@@ -55,6 +56,7 @@ namespace CleanArchitecture.UnitTests.Services
 
             _emailServiceMock = new Mock<IEmailService>();
             _dateTimeServiceMock = new Mock<IDateTimeService>();
+            _userServiceMock = new Mock<IUserService>();
 
             _jwtSettings = Options.Create(new JWTSettings
             {
@@ -78,7 +80,8 @@ namespace CleanArchitecture.UnitTests.Services
                 _dateTimeServiceMock.Object,
                 _signInManagerMock.Object,
                 _emailServiceMock.Object,
-                _dbContext);
+                _dbContext,
+                _userServiceMock.Object);
         }
 
         // ========================

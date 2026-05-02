@@ -24,6 +24,7 @@ namespace CleanArchitecture.Core.Interfaces
         Task<UserProfileDto> GetInternalUserByIdAsync(string userId);
         Task<List<UserProfileDto>> LookupUsersAsync(List<string> userIds);
         Task<UserAuthDto> GetUserByEmailAsync(string email);
+        Task<string> RegisterUserInServiceAsync(CleanArchitecture.Core.DTOs.Account.RegisterRequest request);
         
         // Admin Endpoints
         Task<PagedUsersResponse> GetAllUsersAdminAsync(int page, int limit);
