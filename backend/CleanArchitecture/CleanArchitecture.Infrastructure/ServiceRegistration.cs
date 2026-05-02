@@ -39,14 +39,15 @@ namespace CleanArchitecture.Infrastructure
             services.AddIdentity<ApplicationUser, IdentityRole>().AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
             #region Services
             services.AddTransient<IAccountService, AccountService>();
-            services.AddTransient<IUserService, UserService>();
+            // Proxy services — Scoped (IHttpContextAccessor is scoped)
+            services.AddScoped<IUserService, UserService>();
             services.AddTransient<IHomeService, HomeService>();
-            services.AddTransient<IVendorService, VendorService>();
-            services.AddTransient<IOrderService, OrderService>();
-            services.AddTransient<IPaymentService, PaymentService>();
+            services.AddScoped<IVendorService, VendorService>();
+            services.AddScoped<IOrderService, OrderService>();
+            services.AddScoped<IPaymentService, PaymentService>();
             services.AddTransient<ICampaignService, CampaignService>();
             services.AddTransient<IReviewService, ReviewService>();
-            services.AddTransient<ISearchService, SearchService>();
+            services.AddScoped<ISearchService, SearchService>();
             services.AddTransient<IAdminService, AdminService>();
             #endregion
             services.Configure<JWTSettings>(configuration.GetSection("JWTSettings"));
