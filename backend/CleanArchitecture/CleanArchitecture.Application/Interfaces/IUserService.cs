@@ -13,7 +13,9 @@ namespace CleanArchitecture.Core.Interfaces
         // Address Management
         Task<List<AddressDto>> GetAddressesAsync(string userId);
         Task<AddressDto> CreateAddressAsync(string userId, CreateAddressRequest request);
+        Task<AddressDto> UpdateAddressAsync(string userId, string addressId, CreateAddressRequest request);
         Task DeleteAddressAsync(string userId, string addressId);
+        Task SetCurrentAddressAsync(string userId, string addressId);
         
         // Favorites (Inner Contract)
         Task<PagedFavoritesResponse<UserStoreFavorite>> GetFavoritesAsync(string userId, int page, int limit);
@@ -24,6 +26,7 @@ namespace CleanArchitecture.Core.Interfaces
         Task<UserProfileDto> GetInternalUserByIdAsync(string userId);
         Task<List<UserProfileDto>> LookupUsersAsync(List<string> userIds);
         Task<UserAuthDto> GetUserByEmailAsync(string email);
+        Task<string> RegisterUserInServiceAsync(CleanArchitecture.Core.DTOs.Account.RegisterRequest request);
         
         // Admin Endpoints
         Task<PagedUsersResponse> GetAllUsersAdminAsync(int page, int limit);

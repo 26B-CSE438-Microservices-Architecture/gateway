@@ -6,11 +6,11 @@ services:
       POSTGRES_PASSWORD: 123456
       POSTGRES_DB: gateway_auth
     ports:
-      - "5432:5432"
+      - "5440:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,7 +22,7 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,6 +38,19 @@ services:
       ConnectionStrings__RedisConnection: redis:6379,abortConnect=false
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       ASPNETCORE_ENVIRONMENT: Development
+      # Downstream service URLs — other services run in their own docker-compose networks
+      # Use host.docker.internal to reach services on the host machine
+      Services__UserService: http://host.docker.internal:8000
+      Services__OrderService: http://host.docker.internal:8082
+      Services__RestaurantService: http://host.docker.internal:5001
+      Services__PaymentService: http://host.docker.internal:3000
+      # Shared secrets
+      JWTSettings__Key: "5b1b4b12330f40d8924b22c7302409df5b1b4b12330f40d8924b22c7302409df"
+      JWTSettings__Secret: "5b1b4b12330f40d8924b22c7302409df5b1b4b12330f40d8924b22c7302409df"
+      JWTSettings__Issuer: "Gateway.Auth.Service"
+      JWTSettings__Audience: "Gateway.Clients"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,8 +63,8 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5673:5672"
+      - "15673:15672"
 
 volumes:
   pgdata:

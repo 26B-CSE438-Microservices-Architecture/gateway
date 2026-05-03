@@ -38,7 +38,7 @@ As the central entry point of the architecture, the Gateway/Auth service must fu
 
 ### 3. Identity & Authentication Logic
 * **JWT Generation:** Upon successful login, the service must issue a short-lived `AccessToken` and a long-lived `RefreshToken`.
-* **Role-Based Access Control (RBAC):** Requests must be filtered at the Gateway level based on the required authorization (e.g., Admin, Customer, Courier) defined in the route configuration.
+* **Role-Based Access Control (RBAC):** Requests must be filtered at the Gateway level based on the required authorization (e.g., Customer, RestaurantOwner) defined in the route configuration.
 * **Internal Communication:** A **gRPC** server must be available for high-speed internal authorization checks if downstream services need to verify permissions in real-time.
 
 ### 4. Observability & Health
@@ -57,7 +57,7 @@ As the central entry point of the architecture, the Gateway/Auth service must fu
 The Auth service manages a dedicated PostgreSQL database to handle user identities:
 
 * **Users:** Id, Email, PasswordHash, FullName, PhoneNumber.
-* **UserRoles:** Customer, Courier, RestaurantAdmin, SysAdmin.
+* **UserRoles:** Customer, RestaurantOwner.
 * **RefreshTokens:** Token, UserId, ExpiryDate, IsRevoked.
 
 ---
@@ -78,16 +78,30 @@ The Auth service manages a dedicated PostgreSQL database to handle user identiti
 | PUT | `/profile` | Updates user profile details. | JWT Required |
 | DELETE| `/account` | Permanently deletes the user account and all associated tokens. | JWT Required |
 
-### 2. Infrastructure & Monitoring Endpoints
+### 2. User Service - `api/v1/users`
+| Method | Endpoint | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| GET | `/me` | Get the authenticated user's profile. | JWT Required |
+| PUT | `/me` | Update the user's profile (name, phone). | JWT Required |
+| GET | `/me/addresses` | List all saved delivery addresses. | JWT Required |
+| POST | `/me/addresses` | Add a new delivery address. | JWT Required |
+| PUT | `/me/addresses/{id}` | Update an existing delivery address. | JWT Required |
+| PATCH| `/me/addresses/{id}/current`| Set an address as the current/default delivery address. | JWT Required |
+| DELETE| `/me/addresses/{id}` | Remove a delivery address. | JWT Required |
+| GET | `/me/favorites` | Get favorites aggregated from User and Restaurant services. | JWT Required |
+| POST | `/me/favorites/{vendor_id}` | Add a vendor to favorites. | JWT Required |
+| DELETE| `/me/favorites/{vendor_id}`| Remove a vendor from favorites. | JWT Required |
+
+### 3. Infrastructure & Monitoring Endpoints
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | GET | `/health` | Reports overall service and database health status (Internal check). |
 | GET | `/swagger` | Central UI for exploring local API endpoints and proxied microservices. |
 
-### 3. Gateway Proxied Interfaces (YARP)
+### 4. Gateway Proxied Interfaces (YARP)
 The Gateway acts as a reverse proxy, stripping the `/api` prefix and injecting verified identity headers:
 * `X-User-Id`: Extracted from the `uid` claim.
-* `X-User-Role`: Extracted from the `roles` claim (e.g., Customer, Courier).
+* `X-User-Role`: Extracted from the `roles` claim (e.g., Customer, RestaurantOwner).
 
 | Source Path | Target Service | Logic / Responsibility |
 | :--- | :--- | :--- |

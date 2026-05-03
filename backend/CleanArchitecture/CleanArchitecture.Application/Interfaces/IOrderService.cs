@@ -29,5 +29,6 @@ namespace CleanArchitecture.Core.Interfaces
 
         // --- Internal Operations ---
         Task<OrderResponse> ProcessPaymentCallbackAsync(string orderId, string status);
+        Task SyncProductAsync(SyncProductRequest request);
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace CleanArchitecture.Core.Enums
+namespace CleanArchitecture.Core.Enums
 {
     public enum Roles
     {

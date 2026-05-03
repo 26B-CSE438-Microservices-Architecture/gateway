@@ -67,6 +67,18 @@ namespace CleanArchitecture.WebApi.Controllers
         }
 
         /// <summary>
+        /// Update an existing delivery address.
+        /// </summary>
+        [Authorize]
+        [HttpPut("me/addresses/{id}")]
+        public async Task<IActionResult> UpdateAddress(string id, [FromBody] CreateAddressRequest request)
+        {
+            var userId = User.FindFirstValue("uid");
+            var address = await _userService.UpdateAddressAsync(userId, id, request);
+            return Ok(address);
+        }
+
+        /// <summary>
         /// Remove a delivery address.
         /// </summary>
         [Authorize]
@@ -76,6 +88,18 @@ namespace CleanArchitecture.WebApi.Controllers
             var userId = User.FindFirstValue("uid");
             await _userService.DeleteAddressAsync(userId, id);
             return NoContent();
+        }
+
+        /// <summary>
+        /// Set an address as the current/default delivery address.
+        /// </summary>
+        [Authorize]
+        [HttpPatch("me/addresses/{id}/current")]
+        public async Task<IActionResult> SetCurrentAddress(string id)
+        {
+            var userId = User.FindFirstValue("uid");
+            await _userService.SetCurrentAddressAsync(userId, id);
+            return Ok(new { message = "Current address updated" });
         }
 
         // --- Favorites Aggregation (BFF Logic) ---

@@ -1,85 +1,110 @@
-using CleanArchitecture.Core.DTOs.Search;
+ï»¿using CleanArchitecture.Core.DTOs.Search;
 using CleanArchitecture.Core.Interfaces;
+using Microsoft.AspNetCore.Http;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace CleanArchitecture.Infrastructure.Services
 {
     public class SearchService : ISearchService
     {
-        private static readonly List<SearchVendorDto> _allVendors = new List<SearchVendorDto>
+        private readonly HttpClient _httpClient;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        private static readonly JsonSerializerOptions _jsonOpts = new JsonSerializerOptions
         {
-            new SearchVendorDto { Id = "vendor_101", Name = "Burger Point", Rating = 4.7, IsSponsored = true, ImageUrl = "https://cdn.app.com/burgerpoint.jpg", Eta = "20-30 dk" },
-            new SearchVendorDto { Id = "vendor_102", Name = "Pizza Express", Rating = 4.5, IsSponsored = false, ImageUrl = "https://cdn.app.com/pizzaexpress.jpg", Eta = "25-35 dk" },
-            new SearchVendorDto { Id = "vendor_103", Name = "Komagene Çið Köfte", Rating = 4.3, IsSponsored = false, ImageUrl = "https://cdn.app.com/komagene.jpg", Eta = "15-25 dk" },
-            new SearchVendorDto { Id = "vendor_104", Name = "Domino's Pizza", Rating = 4.4, IsSponsored = true, ImageUrl = "https://cdn.app.com/dominos.jpg", Eta = "30-40 dk" },
-            new SearchVendorDto { Id = "vendor_105", Name = "Burger King", Rating = 4.2, IsSponsored = false, ImageUrl = "https://cdn.app.com/bk.jpg", Eta = "20-30 dk" }
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        private static readonly List<SearchProductDto> _allProducts = new List<SearchProductDto>
+        public SearchService(IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor)
         {
-            new SearchProductDto { Id = "prod_1", Name = "Double Smash Burger", PriceLabel = "210,00 TL", VendorName = "Burger Point" },
-            new SearchProductDto { Id = "prod_2", Name = "Classic Burger", PriceLabel = "160,00 TL", VendorName = "Burger Point" },
-            new SearchProductDto { Id = "prod_4", Name = "Margherita", PriceLabel = "180,00 TL", VendorName = "Pizza Express" },
-            new SearchProductDto { Id = "prod_5", Name = "Pepperoni Pizza", PriceLabel = "200,00 TL", VendorName = "Pizza Express" }
-        };
+            _httpClient = httpClientFactory.CreateClient("restaurant");
+            _httpContextAccessor = httpContextAccessor;
+        }
 
-        public Task<DiscoveryResponse> GetDiscoveryAsync()
+        private class RsRestaurant
         {
-            var response = new DiscoveryResponse
+            public string Id { get; set; }
+            public string Name { get; set; }
+            public string LogoUrl { get; set; }
+            public string Status { get; set; }
+            public double? DistanceKm { get; set; }
+        }
+
+        public async Task<DiscoveryResponse> GetDiscoveryAsync()
+        {
+            try
             {
-                Sections = new List<DiscoverySectionDto>
+                var req = new HttpRequestMessage(HttpMethod.Get, "api/v1/restaurants?page=1&size=20");
+                var response = await _httpClient.SendAsync(req);
+                if (!response.IsSuccessStatusCode) return FallbackDiscovery();
+
+                var restaurants = await response.Content.ReadFromJsonAsync<List<RsRestaurant>>(_jsonOpts)
+                                  ?? new List<RsRestaurant>();
+
+                var chainItems = restaurants.Take(8).Select(r => new DiscoveryItemDto
                 {
-                    new DiscoverySectionDto
+                    Id = r.Id,
+                    Name = r.Name,
+                    LogoUrl = r.LogoUrl
+                }).ToList();
+
+                return new DiscoveryResponse
+                {
+                    Sections = new List<DiscoverySectionDto>
                     {
-                        Title = "Zincir Restoranlar",
-                        Type = "HORIZONTAL_LIST",
-                        Items = new List<DiscoveryItemDto>
-                        {
-                            new DiscoveryItemDto { Id = "v_1", Name = "Komagene", LogoUrl = "https://cdn.app.com/logos/komagene.png" },
-                            new DiscoveryItemDto { Id = "v_2", Name = "Domino's Pizza", LogoUrl = "https://cdn.app.com/logos/dominos.png" },
-                            new DiscoveryItemDto { Id = "v_3", Name = "Burger King", LogoUrl = "https://cdn.app.com/logos/bk.png" },
-                            new DiscoveryItemDto { Id = "v_4", Name = "Subway", LogoUrl = "https://cdn.app.com/logos/subway.png" }
-                        }
-                    },
-                    new DiscoverySectionDto
-                    {
-                        Title = "Mutfaklar",
-                        Type = "GRID",
-                        Items = new List<DiscoveryItemDto>
-                        {
-                            new DiscoveryItemDto { Id = "cat_1", Name = "Döner", ImageUrl = "https://cdn.app.com/cuisines/doner.png", ColorCode = "#FDECEC" },
-                            new DiscoveryItemDto { Id = "cat_2", Name = "Hamburger", ImageUrl = "https://cdn.app.com/cuisines/burger.png", ColorCode = "#FFF4E5" },
-                            new DiscoveryItemDto { Id = "cat_3", Name = "Çið Köfte", ImageUrl = "https://cdn.app.com/cuisines/cigkofte.png", ColorCode = "#EEF7ED" },
-                            new DiscoveryItemDto { Id = "cat_4", Name = "Pizza", ImageUrl = "https://cdn.app.com/cuisines/pizza.png", ColorCode = "#EEF0FD" },
-                            new DiscoveryItemDto { Id = "cat_5", Name = "Sushi", ImageUrl = "https://cdn.app.com/cuisines/sushi.png", ColorCode = "#FDF4EE" }
-                        }
+                        new DiscoverySectionDto { Title = "Restoranlar", Type = "HORIZONTAL_LIST", Items = chainItems }
                     }
-                }
-            };
-
-            return Task.FromResult(response);
+                };
+            }
+            catch { return FallbackDiscovery(); }
         }
 
-        public Task<SearchResponse> SearchAsync(string keyword, double? lat, double? lng)
+        public async Task<SearchResponse> SearchAsync(string keyword, double? lat, double? lng)
         {
-            var lowerKeyword = keyword?.ToLower() ?? "";
-
-            var matchedVendors = _allVendors
-                .Where(v => v.Name.ToLower().Contains(lowerKeyword))
-                .ToList();
-
-            var matchedProducts = _allProducts
-                .Where(p => p.Name.ToLower().Contains(lowerKeyword))
-                .ToList();
-
-            return Task.FromResult(new SearchResponse
+            try
             {
-                TotalCount = matchedVendors.Count + matchedProducts.Count,
-                Vendors = matchedVendors,
-                Products = matchedProducts
-            });
+                var query = "api/v1/restaurants?page=1&size=50";
+                if (lat.HasValue && lng.HasValue) query += $"&lat={lat}&lng={lng}";
+
+                var req = new HttpRequestMessage(HttpMethod.Get, query);
+                var response = await _httpClient.SendAsync(req);
+                if (!response.IsSuccessStatusCode)
+                    return new SearchResponse { TotalCount = 0, Vendors = new List<SearchVendorDto>(), Products = new List<SearchProductDto>() };
+
+                var restaurants = await response.Content.ReadFromJsonAsync<List<RsRestaurant>>(_jsonOpts)
+                                  ?? new List<RsRestaurant>();
+
+                if (!string.IsNullOrEmpty(keyword))
+                {
+                    var lower = keyword.ToLower();
+                    restaurants = restaurants.Where(r => r.Name != null && r.Name.ToLower().Contains(lower)).ToList();
+                }
+
+                var vendors = restaurants.Select(r => new SearchVendorDto
+                {
+                    Id = r.Id, Name = r.Name, Rating = 0, IsSponsored = false,
+                    ImageUrl = r.LogoUrl, Eta = "20-30 dk"
+                }).ToList();
+
+                return new SearchResponse { TotalCount = vendors.Count, Vendors = vendors, Products = new List<SearchProductDto>() };
+            }
+            catch
+            {
+                return new SearchResponse { TotalCount = 0, Vendors = new List<SearchVendorDto>(), Products = new List<SearchProductDto>() };
+            }
         }
+
+        private static DiscoveryResponse FallbackDiscovery() => new DiscoveryResponse
+        {
+            Sections = new List<DiscoverySectionDto>()
+        };
     }
 }

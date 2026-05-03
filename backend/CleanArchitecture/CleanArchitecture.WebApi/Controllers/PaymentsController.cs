@@ -2,6 +2,7 @@ using CleanArchitecture.Core.DTOs.Payment;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -78,15 +79,12 @@ namespace CleanArchitecture.WebApi.Controllers
         }
 
         /// <summary>
-        /// Get all payments for an order.
+        /// Get all payments (optionally filtered by order).
         /// </summary>
         [Authorize]
         [HttpGet]
-        public async Task<IActionResult> GetPaymentsByOrder([FromQuery] string orderId)
+        public async Task<IActionResult> GetPayments([FromQuery, Required] string orderId)
         {
-            if (string.IsNullOrEmpty(orderId))
-                return BadRequest(new { error = "INVALID_REQUEST", message = "orderId query parameter is required." });
-
             var results = await _paymentService.GetPaymentsByOrderIdAsync(orderId);
             return Ok(new { payments = results });
         }
