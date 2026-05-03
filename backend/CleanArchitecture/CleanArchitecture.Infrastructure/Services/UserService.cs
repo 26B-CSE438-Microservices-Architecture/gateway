@@ -218,6 +218,27 @@ namespace CleanArchitecture.Infrastructure.Services
                 response.EnsureSuccessStatusCode();
         }
 
+        public async Task<AddressDto> UpdateAddressAsync(string userId, string addressId, CreateAddressRequest request)
+        {
+            var body = new
+            {
+                address_title = request.Label ?? "Address",
+                city = request.City,
+                street = request.Street,
+                location = new { lat = request.Lat, lng = request.Lng }
+            };
+            var req = BuildRequest(HttpMethod.Put, $"api/v1/users/me/addresses/{addressId}", body);
+            var result = await SendAsync<UsAddress>(req);
+            return MapAddress(result);
+        }
+
+        public async Task SetCurrentAddressAsync(string userId, string addressId)
+        {
+            var req = BuildRequest(HttpMethod.Patch, $"api/v1/users/me/addresses/{addressId}/current");
+            var response = await _httpClient.SendAsync(req);
+            response.EnsureSuccessStatusCode();
+        }
+
         // ─── Favorites Endpoints ──────────────────────────────────────────────────
 
         public async Task<PagedFavoritesResponse<UserStoreFavorite>> GetFavoritesAsync(string userId, int page, int limit)

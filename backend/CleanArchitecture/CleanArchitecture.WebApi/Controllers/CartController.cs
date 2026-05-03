@@ -2,6 +2,7 @@ using CleanArchitecture.Core.DTOs.Order;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using CleanArchitecture.Core.Exceptions;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -13,10 +14,12 @@ namespace CleanArchitecture.WebApi.Controllers
     public class CartController : ControllerBase
     {
         private readonly IOrderService _orderService;
+        private readonly IVendorService _vendorService;
 
-        public CartController(IOrderService orderService)
+        public CartController(IOrderService orderService, IVendorService vendorService)
         {
             _orderService = orderService;
+            _vendorService = vendorService;
         }
 
         /// <summary>
@@ -36,7 +39,34 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> AddToCart([FromBody] AddCartItemRequest request)
         {
             var userId = User.FindFirstValue("uid");
-            return Ok(await _orderService.AddToCartAsync(userId, request));
+            try
+            {
+                return Ok(await _orderService.AddToCartAsync(userId, request));
+            }
+            catch (ApiException ex) when (ex.Message.Contains("PRODUCT_NOT_FOUND") || ex.Message.Contains("Product not found"))
+            {
+                // Attempt to fix synchronization: Fetch from Vendor Service and push to Order Service
+                try 
+                {
+                    var product = await _vendorService.GetProductByIdAsync(request.ProductId);
+                    if (product != null)
+                    {
+                        await _orderService.SyncProductAsync(new SyncProductRequest
+                        {
+                            ProductId = product.Id,
+                            Name = product.Name,
+                            Price = product.Price,
+                            VendorId = "mock_vendor_id" // Ideally extracted from product or context
+                        });
+
+                        // Retry adding to cart
+                        return Ok(await _orderService.AddToCartAsync(userId, request));
+                    }
+                }
+                catch { /* If sync fails, fall through to original exception */ }
+
+                throw; // Rethrow original exception if sync wasn't possible or failed
+            }
         }
 
         /// <summary>

@@ -13,7 +13,9 @@ namespace CleanArchitecture.Core.Interfaces
         // Address Management
         Task<List<AddressDto>> GetAddressesAsync(string userId);
         Task<AddressDto> CreateAddressAsync(string userId, CreateAddressRequest request);
+        Task<AddressDto> UpdateAddressAsync(string userId, string addressId, CreateAddressRequest request);
         Task DeleteAddressAsync(string userId, string addressId);
+        Task SetCurrentAddressAsync(string userId, string addressId);
         
         // Favorites (Inner Contract)
         Task<PagedFavoritesResponse<UserStoreFavorite>> GetFavoritesAsync(string userId, int page, int limit);

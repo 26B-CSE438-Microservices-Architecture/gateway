@@ -1,4 +1,4 @@
-﻿using CleanArchitecture.Core.Enums;
+using CleanArchitecture.Core.Enums;
 using CleanArchitecture.Infrastructure.Models;
 using Microsoft.AspNetCore.Identity;
 using System.Threading.Tasks;

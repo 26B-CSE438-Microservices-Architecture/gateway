@@ -60,10 +60,19 @@ namespace CleanArchitecture.Infrastructure.Services
 
             if (!response.IsSuccessStatusCode)
             {
-                // Try to extract error message from downstream response
                 var errorBody = await response.Content.ReadAsStringAsync();
-                throw new ApiException("ORDER_SERVICE_ERROR",
-                    $"Order Service returned {(int)response.StatusCode}: {errorBody}");
+                var message = errorBody;
+                try 
+                {
+                    using var doc = JsonDocument.Parse(errorBody);
+                    if (doc.RootElement.TryGetProperty("message", out var msgProp))
+                        message = msgProp.GetString();
+                    else if (doc.RootElement.TryGetProperty("error", out var errProp))
+                        message = errProp.GetString();
+                }
+                catch { /* Not JSON or missing expected properties */ }
+
+                throw new ApiException("ORDER_SERVICE_ERROR", message);
             }
             return await response.Content.ReadFromJsonAsync<T>(_jsonOpts);
         }
@@ -183,6 +192,20 @@ namespace CleanArchitecture.Infrastructure.Services
             req.Headers.TryAddWithoutValidation("X-Internal-Secret", "change-me-in-production");
             req.Content = JsonContent.Create(body, options: _jsonOpts);
             return await SendAsync<OrderResponse>(req);
+        }
+
+        public async Task SyncProductAsync(SyncProductRequest request)
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, "internal/catalog/products");
+            req.Headers.TryAddWithoutValidation("X-Internal-Secret", "change-me-in-production");
+            req.Content = JsonContent.Create(request, options: _jsonOpts);
+            
+            var response = await _httpClient.SendAsync(req);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new ApiException("PRODUCT_SYNC_FAILED", $"Failed to sync product to Order Service: {errorBody}");
+            }
         }
     }
 }

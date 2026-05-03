@@ -8,6 +8,7 @@ namespace CleanArchitecture.Core.Interfaces
     {
         Task<PagedVendorsResponse> GetVendorsAsync(int page, int limit);
         Task<VendorDetailDto> GetVendorByIdAsync(string vendorId);
+        Task<ProductDto> GetProductByIdAsync(string productId);
         Task<PagedVendorsResponse> GetNearbyVendorsAsync(double lat, double lng, double radiusKm);
         
         // Internal Lookup

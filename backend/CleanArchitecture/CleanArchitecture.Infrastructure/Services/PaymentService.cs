@@ -60,8 +60,18 @@ namespace CleanArchitecture.Infrastructure.Services
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync();
-                throw new ApiException("PAYMENT_SERVICE_ERROR",
-                    $"Payment Service returned {(int)response.StatusCode}: {errorBody}");
+                var message = errorBody;
+                try 
+                {
+                    using var doc = JsonDocument.Parse(errorBody);
+                    if (doc.RootElement.TryGetProperty("message", out var msgProp))
+                        message = msgProp.GetString();
+                    else if (doc.RootElement.TryGetProperty("error", out var errProp))
+                        message = errProp.GetString();
+                }
+                catch { /* Not JSON or missing expected properties */ }
+
+                throw new ApiException("PAYMENT_SERVICE_ERROR", message);
             }
             return await response.Content.ReadFromJsonAsync<T>(_jsonOpts);
         }

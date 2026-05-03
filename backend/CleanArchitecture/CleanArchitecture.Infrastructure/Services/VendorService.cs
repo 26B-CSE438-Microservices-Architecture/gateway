@@ -346,5 +346,20 @@ namespace CleanArchitecture.Infrastructure.Services
             var req = BuildRequest(HttpMethod.Delete, $"api/v1/products/{productId}");
             return await SendVoidAsync(req);
         }
+
+        public async Task<ProductDto> GetProductByIdAsync(string productId)
+        {
+            var req = BuildRequest(HttpMethod.Get, $"api/v1/products/{productId}");
+            var p = await SendAsync<RsProduct>(req);
+            return new ProductDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                Price = p.Price,
+                IsAvailable = p.IsAvailable,
+                ImageUrl = p.ImageUrl
+            };
+        }
     }
 }

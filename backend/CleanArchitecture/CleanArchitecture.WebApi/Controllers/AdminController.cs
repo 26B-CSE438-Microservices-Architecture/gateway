@@ -8,7 +8,7 @@ namespace CleanArchitecture.WebApi.Controllers
 {
     [Route("api/v1/admin")]
     [ApiController]
-    [Authorize(Roles = "SysAdmin,Admin")] // Aligning with common admin roles
+    [Authorize(Roles = "SysAdmin")] // Aligning with system roles
     public class AdminController : ControllerBase
     {
         private readonly IUserService _userService;
@@ -30,10 +30,10 @@ namespace CleanArchitecture.WebApi.Controllers
         /// <summary>
         /// Retrieves detailed information for any user by their ID.
         /// </summary>
-        [HttpPut("users/{userId}")]
-        public async Task<IActionResult> GetUserById(string id)
+        [HttpGet("users/{userId}")]
+        public async Task<IActionResult> GetUserById(string userId)
         {
-            return Ok(await _userService.GetInternalUserByIdAsync(id));
+            return Ok(await _userService.GetInternalUserByIdAsync(userId));
         }
 
         /// <summary>

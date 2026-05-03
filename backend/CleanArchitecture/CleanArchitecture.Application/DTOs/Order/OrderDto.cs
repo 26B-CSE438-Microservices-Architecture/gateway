@@ -140,6 +140,21 @@ namespace CleanArchitecture.Core.DTOs.Order
         [JsonPropertyName("status")]
         public string Status { get; set; }
     }
+
+    public class SyncProductRequest
+    {
+        [JsonPropertyName("productId")]
+        public string ProductId { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; }
+
+        [JsonPropertyName("price")]
+        public double Price { get; set; }
+
+        [JsonPropertyName("vendorId")]
+        public string VendorId { get; set; }
+    }
     
     public class PagedResponse<T>
     {
