@@ -45,6 +45,18 @@ builder.Services.AddHealthChecks()
     .AddRedis(builder.Configuration.GetConnectionString("RedisConnection") ?? "localhost:6379,abortConnect=false", name: "Redis");
 builder.Services.AddScoped<IAuthenticatedUserService, AuthenticatedUserService>();
 
+var frontendOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:3000", "http://localhost:4200" };
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.WithOrigins(frontendOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // IHttpContextAccessor — proxy servisler mevcut isteğin header'larına erişmek için buna ihtiyaç duyar
 builder.Services.AddHttpContextAccessor();
 
@@ -133,8 +145,7 @@ app.UsePathBase("/cse438");
 app.UseRouting();
 app.UseRateLimiter();
 
-var frontendOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:3000", "http://localhost:4200" };
-app.UseCors(options => options.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();
