@@ -133,8 +133,8 @@ app.UsePathBase("/cse438");
 app.UseRouting();
 app.UseRateLimiter();
 
-var frontendOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:3000" };
-app.UseCors(options => options.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod());
+var frontendOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:3000", "http://localhost:4200" };
+app.UseCors(options => options.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
 
 app.UseAuthentication();
 app.UseAuthorization();
