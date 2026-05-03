@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Git Fetch and Pull
         run: |
-          cd /home/cse438/trendyol-clone/repos/gateway
+          cd /home/cse438/trendyol-clone/gateway
           git fetch origin
           git checkout main
           git pull origin main
