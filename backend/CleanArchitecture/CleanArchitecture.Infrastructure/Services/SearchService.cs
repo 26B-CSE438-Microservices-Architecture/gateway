@@ -60,19 +60,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 {
                     Sections = new List<DiscoverySectionDto>
                     {
-                        new DiscoverySectionDto { Title = "Restoranlar", Type = "HORIZONTAL_LIST", Items = chainItems },
-                        new DiscoverySectionDto
-                        {
-                            Title = "Mutfaklar",
-                            Type = "GRID",
-                            Items = new List<DiscoveryItemDto>
-                            {
-                                new DiscoveryItemDto { Id = "cat_1", Name = "Doner", ImageUrl = "https://cdn.app.com/cuisines/doner.png", ColorCode = "#FDECEC" },
-                                new DiscoveryItemDto { Id = "cat_2", Name = "Hamburger", ImageUrl = "https://cdn.app.com/cuisines/burger.png", ColorCode = "#FFF4E5" },
-                                new DiscoveryItemDto { Id = "cat_3", Name = "Pizza", ImageUrl = "https://cdn.app.com/cuisines/pizza.png", ColorCode = "#EEF0FD" },
-                                new DiscoveryItemDto { Id = "cat_4", Name = "Sushi", ImageUrl = "https://cdn.app.com/cuisines/sushi.png", ColorCode = "#FDF4EE" }
-                            }
-                        }
+                        new DiscoverySectionDto { Title = "Restoranlar", Type = "HORIZONTAL_LIST", Items = chainItems }
                     }
                 };
             }
@@ -116,18 +104,7 @@ namespace CleanArchitecture.Infrastructure.Services
 
         private static DiscoveryResponse FallbackDiscovery() => new DiscoveryResponse
         {
-            Sections = new List<DiscoverySectionDto>
-            {
-                new DiscoverySectionDto
-                {
-                    Title = "Mutfaklar", Type = "GRID",
-                    Items = new List<DiscoveryItemDto>
-                    {
-                        new DiscoveryItemDto { Id = "cat_1", Name = "Doner", ImageUrl = "https://cdn.app.com/cuisines/doner.png", ColorCode = "#FDECEC" },
-                        new DiscoveryItemDto { Id = "cat_2", Name = "Hamburger", ImageUrl = "https://cdn.app.com/cuisines/burger.png", ColorCode = "#FFF4E5" }
-                    }
-                }
-            }
+            Sections = new List<DiscoverySectionDto>()
         };
     }
 }

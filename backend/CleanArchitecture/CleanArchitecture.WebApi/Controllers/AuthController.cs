@@ -70,6 +70,11 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
         {
+            if (string.IsNullOrEmpty(request?.OldPassword) || string.IsNullOrEmpty(request?.NewPassword))
+            {
+                return BadRequest(new { error = "BAD_REQUEST", message = "old_password and new_password are required." });
+            }
+
             var userId = User.FindFirstValue("uid");
             return Ok(await _accountService.ChangePasswordAsync(userId, request));
         }

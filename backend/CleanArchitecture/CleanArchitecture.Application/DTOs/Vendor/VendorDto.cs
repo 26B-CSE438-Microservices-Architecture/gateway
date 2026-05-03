@@ -23,6 +23,9 @@ namespace CleanArchitecture.Core.DTOs.Vendor
         [JsonPropertyName("distance_km")]
         public double DistanceKm { get; set; }
 
+        [JsonPropertyName("logo_url")]
+        public string LogoUrl { get; set; }
+
         [JsonPropertyName("campaign_badges")]
         public List<string> CampaignBadges { get; set; }
 
@@ -46,9 +49,6 @@ namespace CleanArchitecture.Core.DTOs.Vendor
 
         [JsonPropertyName("longitude")]
         public double Longitude { get; set; }
-
-        [JsonPropertyName("logo_url")]
-        public string LogoUrl { get; set; }
 
         [JsonPropertyName("status")]
         public string Status { get; set; } // Open, Closed, Busy
