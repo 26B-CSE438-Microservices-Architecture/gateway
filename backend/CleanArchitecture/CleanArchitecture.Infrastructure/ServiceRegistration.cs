@@ -82,7 +82,7 @@ namespace CleanArchitecture.Infrastructure
                             c.NoResult();
                             c.Response.StatusCode = 401;
                             c.Response.ContentType = "application/json";
-                            return c.Response.WriteAsync("{\"error\":\"AUTHENTICATION_FAILED\",\"message\":\"Token validation failed.\"}");
+                            return c.Response.WriteAsync($"{{\"error\":\"AUTHENTICATION_FAILED\",\"message\":\"Token validation failed: {c.Exception.Message}\"}}");
                         },
                         OnChallenge = context =>
                         {
