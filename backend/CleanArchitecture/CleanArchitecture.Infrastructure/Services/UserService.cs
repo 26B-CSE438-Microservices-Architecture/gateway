@@ -182,6 +182,49 @@ namespace CleanArchitecture.Infrastructure.Services
             return MapUser(u);
         }
 
+        // ─── Password Endpoints ──────────────────────────────────────────────────
+
+        public async Task RequestPasswordResetInServiceAsync(string email)
+        {
+            var body = new { email = email };
+            var req = BuildRequest(HttpMethod.Post, "api/v1/users/forgot-password/request", body);
+            
+            var response = await _httpClient.SendAsync(req);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                throw new ApiException($"Password Reset Request Failed: {errorMsg}");
+            }
+        }
+
+        public async Task ConfirmPasswordResetInServiceAsync(string token, string newPassword)
+        {
+            var body = new { token = token, new_password = newPassword };
+            var req = BuildRequest(HttpMethod.Post, "api/v1/users/forgot-password/confirm", body);
+            
+            var response = await _httpClient.SendAsync(req);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                throw new ApiException($"Password Reset Confirm Failed: {errorMsg}");
+            }
+        }
+
+        public async Task ChangePasswordInServiceAsync(string userId, string currentPassword, string newPassword)
+        {
+            var body = new { current_password = currentPassword, new_password = newPassword };
+            // Since this uses User.FindFirstValue("uid") in AuthController, it gets passed as userId.
+            // BuildRequest uses _httpContextAccessor which has the 'uid' claim, so X-User-Id is injected automatically.
+            var req = BuildRequest(HttpMethod.Post, "api/v1/users/me/change-password", body);
+            
+            var response = await _httpClient.SendAsync(req);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                throw new ApiException($"Change Password Failed: {errorMsg}");
+            }
+        }
+
         // ─── Address Endpoints ────────────────────────────────────────────────────
 
         public async Task<List<AddressDto>> GetAddressesAsync(string userId)

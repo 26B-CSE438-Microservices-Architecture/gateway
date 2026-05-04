@@ -10,6 +10,11 @@ namespace CleanArchitecture.Core.Interfaces
         Task<UserProfileDto> GetProfileAsync(string userId);
         Task<UserProfileDto> UpdateProfileAsync(string userId, UserUpdateProfileRequest request);
         
+        // Password Management
+        Task RequestPasswordResetInServiceAsync(string email);
+        Task ConfirmPasswordResetInServiceAsync(string token, string newPassword);
+        Task ChangePasswordInServiceAsync(string userId, string currentPassword, string newPassword);
+        
         // Address Management
         Task<List<AddressDto>> GetAddressesAsync(string userId);
         Task<AddressDto> CreateAddressAsync(string userId, CreateAddressRequest request);
