@@ -61,9 +61,15 @@ namespace CleanArchitecture.Infrastructure.Services
             {
                 var errorBody = await response.Content.ReadAsStringAsync();
                 var message = errorBody;
+                var errorCode = "PAYMENT_SERVICE_ERROR";
                 try 
                 {
                     using var doc = JsonDocument.Parse(errorBody);
+                    if (doc.RootElement.TryGetProperty("code", out var codeProp))
+                    {
+                        errorCode = codeProp.GetString();
+                    }
+
                     if (doc.RootElement.TryGetProperty("message", out var msgProp))
                     {
                         message = msgProp.GetString();
@@ -71,14 +77,19 @@ namespace CleanArchitecture.Infrastructure.Services
                     else if (doc.RootElement.TryGetProperty("error", out var errProp))
                     {
                         if (errProp.ValueKind == JsonValueKind.String)
+                        {
                             message = errProp.GetString();
-                        else if (errProp.ValueKind == JsonValueKind.Object && errProp.TryGetProperty("message", out var innerMsg))
-                            message = innerMsg.GetString();
+                        }
+                        else if (errProp.ValueKind == JsonValueKind.Object)
+                        {
+                            if (errProp.TryGetProperty("code", out var innerCode)) errorCode = innerCode.GetString();
+                            if (errProp.TryGetProperty("message", out var innerMsg)) message = innerMsg.GetString();
+                        }
                     }
                 }
                 catch { /* Not JSON or missing expected properties */ }
 
-                throw new ApiException("PAYMENT_SERVICE_ERROR", message);
+                throw new ApiException(errorCode, message);
             }
             return await response.Content.ReadFromJsonAsync<T>(_jsonOpts);
         }

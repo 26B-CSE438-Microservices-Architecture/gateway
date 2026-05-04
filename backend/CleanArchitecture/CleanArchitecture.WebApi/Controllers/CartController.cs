@@ -45,7 +45,7 @@ namespace CleanArchitecture.WebApi.Controllers
             {
                 return Ok(await _orderService.AddToCartAsync(userId, request));
             }
-            catch (ApiException ex) when (ex.ErrorCode == "NOT_FOUND" || ex.Message.Contains("PRODUCT_NOT_FOUND") || ex.Message.Contains("Product not found"))
+            catch (ApiException ex) when (ex.ErrorCode == "NOT_FOUND" || ex.ErrorCode == "PRODUCT_NOT_FOUND" || ex.Message.Contains("PRODUCT_NOT_FOUND") || ex.Message.Contains("Product not found"))
             {
                 // Attempt to fix synchronization: Fetch from Vendor Service and push to Order Service
                 try 
