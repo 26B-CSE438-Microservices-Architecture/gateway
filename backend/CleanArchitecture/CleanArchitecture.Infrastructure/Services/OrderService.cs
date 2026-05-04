@@ -16,6 +16,7 @@ namespace CleanArchitecture.Infrastructure.Services
     {
         private readonly HttpClient _httpClient;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
 
         private static readonly JsonSerializerOptions _jsonOpts = new JsonSerializerOptions
         {
@@ -23,10 +24,17 @@ namespace CleanArchitecture.Infrastructure.Services
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        public OrderService(IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor)
+        public OrderService(IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor, Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
             _httpClient = httpClientFactory.CreateClient("order");
             _httpContextAccessor = httpContextAccessor;
+            _configuration = configuration;
+        }
+
+        private void AddInternalSecret(HttpRequestMessage req)
+        {
+            var secret = _configuration["InternalSettings:Secret"] ?? "GatewaySecret123!";
+            req.Headers.TryAddWithoutValidation("X-Internal-Secret", secret);
         }
 
         // ─── Helper ──────────────────────────────────────────────────────────────
@@ -66,9 +74,16 @@ namespace CleanArchitecture.Infrastructure.Services
                 {
                     using var doc = JsonDocument.Parse(errorBody);
                     if (doc.RootElement.TryGetProperty("message", out var msgProp))
+                    {
                         message = msgProp.GetString();
+                    }
                     else if (doc.RootElement.TryGetProperty("error", out var errProp))
-                        message = errProp.GetString();
+                    {
+                        if (errProp.ValueKind == JsonValueKind.String)
+                            message = errProp.GetString();
+                        else if (errProp.ValueKind == JsonValueKind.Object && errProp.TryGetProperty("message", out var innerMsg))
+                            message = innerMsg.GetString();
+                    }
                 }
                 catch { /* Not JSON or missing expected properties */ }
 
@@ -188,8 +203,7 @@ namespace CleanArchitecture.Infrastructure.Services
         {
             var body = new { status };
             var req = new HttpRequestMessage(HttpMethod.Post, $"internal/orders/{orderId}/payment-callback");
-            // Internal endpoint uses X-Internal-Secret, not JWT
-            req.Headers.TryAddWithoutValidation("X-Internal-Secret", "change-me-in-production");
+            AddInternalSecret(req);
             req.Content = JsonContent.Create(body, options: _jsonOpts);
             return await SendAsync<OrderResponse>(req);
         }
@@ -197,7 +211,7 @@ namespace CleanArchitecture.Infrastructure.Services
         public async Task SyncProductAsync(SyncProductRequest request)
         {
             var req = new HttpRequestMessage(HttpMethod.Post, "internal/catalog/products");
-            req.Headers.TryAddWithoutValidation("X-Internal-Secret", "change-me-in-production");
+            AddInternalSecret(req);
             req.Content = JsonContent.Create(request, options: _jsonOpts);
             
             var response = await _httpClient.SendAsync(req);

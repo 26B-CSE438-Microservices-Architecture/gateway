@@ -27,6 +27,15 @@ namespace CleanArchitecture.WebApi.Middlewares
             }
             catch (Exception error)
             {
+                if (context.Response.HasStarted)
+                {
+                    // If the response has already started, we can't change the status code or headers.
+                    // We just log the error and return.
+                    // (In a real app, you might want to log this via a logging service)
+                    Console.WriteLine("Response has already started, skipping ErrorHandlerMiddleware body.");
+                    return;
+                }
+
                 var response = context.Response;
                 response.ContentType = "application/json";
 

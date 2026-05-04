@@ -125,25 +125,6 @@
             Requires X-Internal-Secret header.
             </summary>
         </member>
-        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.GetUserById(System.String)">
-            <summary>
-            Fetch basic user profile by ID. Used by Order and Payment services.
-            </summary>
-            <summary>
-            Retrieves non-sensitive internal user data (e.g. for Order Service).
-            Requires X-Internal-Secret header.
-            </summary>
-        </member>
-        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.BulkLookup(CleanArchitecture.WebApi.Controllers.UserLookupRequest)">
-            <summary>
-            Bulk fetch multiple users by a list of IDs.
-            </summary>
-        </member>
-        <member name="M:CleanArchitecture.WebApi.Controllers.InternalUsersController.GetUserByEmail(System.String)">
-            <summary>
-            Look up a user by email address. Used by Gateway/Auth for credential verification.
-            </summary>
-        </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.InternalVendorsController.BulkLookup(CleanArchitecture.Core.DTOs.Vendor.VendorLookupRequest)">
             <summary>
             Bulk fetch vendor details (name, image_url) by IDs. Used by Gateway/BFF for composition.
@@ -202,11 +183,6 @@
         <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.GetPayment(System.String)">
             <summary>
             Get payment details by ID.
-            </summary>
-        </member>
-        <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.GetPayments(System.String)">
-            <summary>
-            Get all payments (optionally filtered by order).
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.GetRestaurantOrders(System.String,System.Int32,System.Int32)">

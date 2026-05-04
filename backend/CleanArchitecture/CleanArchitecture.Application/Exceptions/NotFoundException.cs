@@ -2,13 +2,10 @@ using System;
 
 namespace CleanArchitecture.Core.Exceptions
 {
-    public class NotFoundException : Exception
+    public class NotFoundException : ApiException
     {
-        public string ErrorCode { get; }
-
-        public NotFoundException(string errorCode, string message) : base(message)
+        public NotFoundException(string errorCode, string message) : base(errorCode, message)
         {
-            ErrorCode = errorCode;
         }
     }
 }

@@ -29,6 +29,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> GetCart()
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.GetCartAsync(userId));
         }
 
@@ -39,11 +40,12 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> AddToCart([FromBody] AddCartItemRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             try
             {
                 return Ok(await _orderService.AddToCartAsync(userId, request));
             }
-            catch (ApiException ex) when (ex.Message.Contains("PRODUCT_NOT_FOUND") || ex.Message.Contains("Product not found"))
+            catch (ApiException ex) when (ex.ErrorCode == "NOT_FOUND" || ex.Message.Contains("PRODUCT_NOT_FOUND") || ex.Message.Contains("Product not found"))
             {
                 // Attempt to fix synchronization: Fetch from Vendor Service and push to Order Service
                 try 
@@ -56,16 +58,16 @@ namespace CleanArchitecture.WebApi.Controllers
                             ProductId = product.Id,
                             Name = product.Name,
                             Price = product.Price,
-                            VendorId = "mock_vendor_id" // Ideally extracted from product or context
+                            VendorId = product.VendorId ?? "unknown_vendor"
                         });
 
                         // Retry adding to cart
                         return Ok(await _orderService.AddToCartAsync(userId, request));
                     }
                 }
-                catch { /* If sync fails, fall through to original exception */ }
+                catch { }
 
-                throw; // Rethrow original exception if sync wasn't possible or failed
+                throw;
             }
         }
 
@@ -76,6 +78,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> UpdateItem(string productId, [FromBody] UpdateCartItemRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.UpdateCartItemAsync(userId, productId, request));
         }
 
@@ -86,6 +89,8 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> RemoveItem(string productId)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
             return Ok(await _orderService.RemoveFromCartAsync(userId, productId));
         }
 
@@ -96,6 +101,8 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> ClearCart()
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
             await _orderService.ClearCartAsync(userId);
             return NoContent();
         }
@@ -107,6 +114,8 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> Checkout([FromBody] CheckoutRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
             var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
             
             var result = await _orderService.CheckoutAsync(userId, request, idempotencyKey);

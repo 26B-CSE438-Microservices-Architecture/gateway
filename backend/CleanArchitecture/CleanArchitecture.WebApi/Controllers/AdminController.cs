@@ -8,7 +8,7 @@ namespace CleanArchitecture.WebApi.Controllers
 {
     [Route("api/v1/admin")]
     [ApiController]
-    [Authorize(Roles = "SysAdmin")] // Aligning with system roles
+    [Authorize(Roles = "RestaurantOwner,restaurant_owner")] // Using the simplified privileged role
     public class AdminController : ControllerBase
     {
         private readonly IUserService _userService;

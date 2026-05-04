@@ -65,9 +65,16 @@ namespace CleanArchitecture.Infrastructure.Services
                 {
                     using var doc = JsonDocument.Parse(errorBody);
                     if (doc.RootElement.TryGetProperty("message", out var msgProp))
+                    {
                         message = msgProp.GetString();
+                    }
                     else if (doc.RootElement.TryGetProperty("error", out var errProp))
-                        message = errProp.GetString();
+                    {
+                        if (errProp.ValueKind == JsonValueKind.String)
+                            message = errProp.GetString();
+                        else if (errProp.ValueKind == JsonValueKind.Object && errProp.TryGetProperty("message", out var innerMsg))
+                            message = innerMsg.GetString();
+                    }
                 }
                 catch { /* Not JSON or missing expected properties */ }
 

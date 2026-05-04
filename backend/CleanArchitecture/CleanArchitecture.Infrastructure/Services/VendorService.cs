@@ -102,6 +102,8 @@ namespace CleanArchitecture.Infrastructure.Services
         private class RsProduct
         {
             public string Id { get; set; }
+            [JsonPropertyName("restaurant_id")]
+            public string RestaurantId { get; set; }
             public string Name { get; set; }
             public string Description { get; set; }
             public double Price { get; set; }
@@ -187,6 +189,7 @@ namespace CleanArchitecture.Infrastructure.Services
                     Products = c.Products?.Select(p => new ProductDto
                     {
                         Id = p.Id,
+                        VendorId = restaurant.Id,
                         Name = p.Name,
                         Description = p.Description,
                         Price = p.Price,
@@ -354,6 +357,7 @@ namespace CleanArchitecture.Infrastructure.Services
             return new ProductDto
             {
                 Id = p.Id,
+                VendorId = p.RestaurantId,
                 Name = p.Name,
                 Description = p.Description,
                 Price = p.Price,

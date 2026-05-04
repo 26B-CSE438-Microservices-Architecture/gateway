@@ -218,6 +218,9 @@ namespace CleanArchitecture.Core.DTOs.Vendor
         [JsonPropertyName("id")]
         public string Id { get; set; }
 
+        [JsonPropertyName("vendor_id")]
+        public string VendorId { get; set; }
+
         [JsonPropertyName("name")]
         public string Name { get; set; }
 

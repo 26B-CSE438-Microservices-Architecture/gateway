@@ -21,6 +21,7 @@ namespace CleanArchitecture.Infrastructure.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly HttpClient _httpClient;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
 
         private static readonly JsonSerializerOptions _jsonOpts = new JsonSerializerOptions
         {
@@ -30,11 +31,13 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public UserService(UserManager<ApplicationUser> userManager,
                            IHttpClientFactory httpClientFactory,
-                           IHttpContextAccessor httpContextAccessor)
+                           IHttpContextAccessor httpContextAccessor,
+                           Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
             _userManager = userManager;
             _httpClient = httpClientFactory.CreateClient("user");
             _httpContextAccessor = httpContextAccessor;
+            _configuration = configuration;
         }
 
         // ─── Helper ──────────────────────────────────────────────────────────────
@@ -56,11 +59,13 @@ namespace CleanArchitecture.Infrastructure.Services
         }
 
         // Build a request for internal endpoints (no user context needed)
-        private static HttpRequestMessage BuildInternalRequest(HttpMethod method, string path, object body = null)
+        private HttpRequestMessage BuildInternalRequest(HttpMethod method, string path, object body = null)
         {
             var req = new HttpRequestMessage(method, path);
+            var secret = _configuration["InternalSettings:Secret"] ?? "GatewaySecret123!";
+            req.Headers.Add("X-Internal-Secret", secret);
             if (body != null)
-                req.Content = JsonContent.Create(body);
+                req.Content = JsonContent.Create(body, options: _jsonOpts);
             return req;
         }
 

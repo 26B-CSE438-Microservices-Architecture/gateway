@@ -1,4 +1,4 @@
-﻿using CleanArchitecture.Core.Enums;
+using CleanArchitecture.Core.Enums;
 using CleanArchitecture.Infrastructure.Models;
 using Microsoft.AspNetCore.Identity;
 using System.Linq;
@@ -24,7 +24,7 @@ namespace CleanArchitecture.Infrastructure.Seeds
             if (user == null)
             {
                 await userManager.CreateAsync(defaultUser, "123Pa$$word!");
-                await userManager.AddToRoleAsync(defaultUser, Roles.SysAdmin.ToString());
+                await userManager.AddToRoleAsync(defaultUser, Roles.RestaurantOwner.ToString());
             }
         }
     }

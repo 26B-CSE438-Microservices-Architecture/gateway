@@ -78,13 +78,18 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(new { payment = result });
         }
 
-        /// <summary>
-        /// Get all payments (optionally filtered by order).
-        /// </summary>
-        [Authorize]
         [HttpGet]
-        public async Task<IActionResult> GetPayments([FromQuery, Required] string orderId)
+        [Authorize]
+        public async Task<IActionResult> GetPayments([FromQuery] string orderId)
         {
+            var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            if (string.IsNullOrEmpty(orderId))
+            {
+                // If no orderId is provided, return an empty list instead of a 400 error.
+                return Ok(new { payments = new System.Collections.Generic.List<CleanArchitecture.Core.DTOs.Payment.PaymentResponse>() });
+            }
             var results = await _paymentService.GetPaymentsByOrderIdAsync(orderId);
             return Ok(new { payments = results });
         }

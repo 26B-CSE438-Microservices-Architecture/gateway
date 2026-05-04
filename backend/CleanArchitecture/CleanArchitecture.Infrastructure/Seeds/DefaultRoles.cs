@@ -10,14 +10,8 @@ namespace CleanArchitecture.Infrastructure.Seeds
         public static async Task SeedAsync(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager)
         {
             //Seed Roles
-            if (!await roleManager.RoleExistsAsync(Roles.SysAdmin.ToString()))
-                await roleManager.CreateAsync(new IdentityRole(Roles.SysAdmin.ToString()));
-
-            if (!await roleManager.RoleExistsAsync(Roles.RestaurantAdmin.ToString()))
-                await roleManager.CreateAsync(new IdentityRole(Roles.RestaurantAdmin.ToString()));
-
-            if (!await roleManager.RoleExistsAsync(Roles.Courier.ToString()))
-                await roleManager.CreateAsync(new IdentityRole(Roles.Courier.ToString()));
+            if (!await roleManager.RoleExistsAsync(Roles.RestaurantOwner.ToString()))
+                await roleManager.CreateAsync(new IdentityRole(Roles.RestaurantOwner.ToString()));
 
             if (!await roleManager.RoleExistsAsync(Roles.Customer.ToString()))
                 await roleManager.CreateAsync(new IdentityRole(Roles.Customer.ToString()));

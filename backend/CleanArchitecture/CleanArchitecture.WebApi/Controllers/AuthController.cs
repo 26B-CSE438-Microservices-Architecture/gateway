@@ -76,6 +76,8 @@ namespace CleanArchitecture.WebApi.Controllers
             }
 
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
             return Ok(await _accountService.ChangePasswordAsync(userId, request));
         }
 
