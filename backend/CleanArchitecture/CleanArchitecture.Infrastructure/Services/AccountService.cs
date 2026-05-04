@@ -331,6 +331,21 @@ namespace CleanArchitecture.Infrastructure.Services
             return result.Succeeded;
         }
 
+        public async Task<bool> DeleteAccountAsync(string userId, DeleteAccountRequest request)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new ApiException("User not found.");
+
+            var checkPassword = await _userManager.CheckPasswordAsync(user, request.Password);
+            if (!checkPassword) throw new ApiException("Invalid password.");
+
+            // Directly delete related RefreshTokens using DbContext to ensure they are gone
+            await _dbContext.Set<RefreshToken>().Where(x => EF.Property<string>(x, "ApplicationUserId") == userId).ExecuteDeleteAsync();
+
+            var result = await _userManager.DeleteAsync(user);
+            return result.Succeeded;
+        }
+
         public async Task AddToRoleAsync(string userId, string roleName)
         {
             var user = await _userManager.FindByIdAsync(userId);
