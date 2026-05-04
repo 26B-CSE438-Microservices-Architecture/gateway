@@ -13,12 +13,14 @@ namespace CleanArchitecture.WebApi.Controllers
     public class InternalUsersController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly IAccountService _accountService;
         private readonly IConfiguration _configuration;
         private const string InternalSecretHeader = "X-Internal-Secret";
 
-        public InternalUsersController(IUserService userService, IConfiguration configuration)
+        public InternalUsersController(IUserService userService, IAccountService accountService, IConfiguration configuration)
         {
             _userService = userService;
+            _accountService = accountService;
             _configuration = configuration;
         }
 
@@ -27,6 +29,14 @@ namespace CleanArchitecture.WebApi.Controllers
             if (!Request.Headers.TryGetValue(InternalSecretHeader, out var secret)) return false;
             var expectedSecret = _configuration["InternalSettings:Secret"];
             return secret == expectedSecret;
+        }
+
+        [HttpPost("{userId}/roles")]
+        public async Task<IActionResult> AddRole(string userId, [FromBody] string roleName)
+        {
+            if (!IsInternalAuthorized()) return Unauthorized(new { message = "Invalid Internal Secret" });
+            await _accountService.AddToRoleAsync(userId, roleName);
+            return Ok(new { message = $"Role {roleName} added to user {userId}" });
         }
 
         [HttpGet("{userId}")]

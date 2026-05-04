@@ -1,4 +1,4 @@
-﻿using CleanArchitecture.Core.DTOs.Account;
+using CleanArchitecture.Core.DTOs.Account;
 using CleanArchitecture.Core.DTOs.Email;
 using CleanArchitecture.Core.Wrappers;
 using System.Threading.Tasks;
@@ -17,5 +17,6 @@ namespace CleanArchitecture.Core.Interfaces
         Task<bool> ChangePasswordAsync(string userId, ChangePasswordRequest request);
         Task<bool> UpdateProfileAsync(string userId, UpdateProfileRequest request);
         Task<bool> DeleteAccountAsync(string userId, DeleteAccountRequest request);
+        Task AddToRoleAsync(string userId, string roleName);
     }
 }

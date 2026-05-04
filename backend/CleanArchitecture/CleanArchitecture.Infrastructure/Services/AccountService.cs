@@ -204,8 +204,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 claimsList.Add(new Claim("roles", role));
             }
 
-            var jwtKeyStr = _jwtSettings.Key ?? _jwtSettings.Secret ?? "Default_Secure_Key_For_Gateway_Service_2026_!@#";
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKeyStr));
+            var key = CleanArchitecture.Infrastructure.Helpers.JWTHelper.GetSymmetricSecurityKey(_jwtSettings.Key ?? _jwtSettings.Secret);
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var tokenDescriptor = new SecurityTokenDescriptor
@@ -332,20 +331,20 @@ namespace CleanArchitecture.Infrastructure.Services
             return result.Succeeded;
         }
 
-        public async Task<bool> DeleteAccountAsync(string userId, DeleteAccountRequest request)
+        public async Task AddToRoleAsync(string userId, string roleName)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) throw new ApiException("User not found.");
 
-            var checkPassword = await _userManager.CheckPasswordAsync(user, request.Password);
-            if (!checkPassword) throw new ApiException("Invalid password.");
+            if (!await _roleManager.RoleExistsAsync(roleName))
+            {
+                await _roleManager.CreateAsync(new IdentityRole(roleName));
+            }
 
-            // Directly delete related RefreshTokens using DbContext to ensure they are gone
-            // Using ExecuteDeleteAsync for better performance and to bypass navigation property issues
-            await _dbContext.Set<RefreshToken>().Where(x => EF.Property<string>(x, "ApplicationUserId") == userId).ExecuteDeleteAsync();
-
-            var result = await _userManager.DeleteAsync(user);
-            return result.Succeeded;
+            if (!await _userManager.IsInRoleAsync(user, roleName))
+            {
+                await _userManager.AddToRoleAsync(user, roleName);
+            }
         }
     }
 }
