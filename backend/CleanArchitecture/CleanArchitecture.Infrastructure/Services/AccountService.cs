@@ -170,7 +170,8 @@ namespace CleanArchitecture.Infrastructure.Services
             var result = await _userManager.CreateAsync(user, request.Password);
             if (result.Succeeded)
             {
-                await _userManager.AddToRoleAsync(user, Roles.Customer.ToString());
+                var role = string.IsNullOrEmpty(request.Role) ? Roles.Customer.ToString() : request.Role;
+                await _userManager.AddToRoleAsync(user, role);
                 return new RegisterResponse
                 {
                     Message = "User registered successfully",
@@ -191,7 +192,9 @@ namespace CleanArchitecture.Infrastructure.Services
 
             var claimsList = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+                // Set Subject to user.Id instead of user.UserName for order-service compatibility
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                new Claim("username", user.UserName),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email),
                 new Claim("uid", user.Id),
@@ -199,10 +202,25 @@ namespace CleanArchitecture.Infrastructure.Services
             };
 
             claimsList.AddRange(userClaims);
+            
+            string mainRole = "CUSTOMER";
             foreach (var role in roles)
             {
                 claimsList.Add(new Claim("roles", role));
+                
+                // Determine the main role for the "role" claim expected by order-service
+                if (role.Equals("RestaurantOwner", System.StringComparison.OrdinalIgnoreCase) || role.Equals("restaurant_owner", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    mainRole = "RESTAURANT_OWNER";
+                }
+                else if (role.Equals("Admin", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    mainRole = "ADMIN";
+                }
             }
+            
+            // order-service expects a single "role" claim in UPPERCASE_UNDERSCORE format
+            claimsList.Add(new Claim("role", mainRole));
 
             var key = CleanArchitecture.Infrastructure.Helpers.JWTHelper.GetSymmetricSecurityKey(_jwtSettings.Key ?? _jwtSettings.Secret);
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

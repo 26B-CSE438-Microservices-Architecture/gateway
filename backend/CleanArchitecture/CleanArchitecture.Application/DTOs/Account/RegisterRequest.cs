@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace CleanArchitecture.Core.DTOs.Account
@@ -21,5 +21,7 @@ namespace CleanArchitecture.Core.DTOs.Account
         [Required]
         [MinLength(6)]
         public string Password { get; set; }
+
+        public string Role { get; set; }
     }
 }
