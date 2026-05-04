@@ -275,17 +275,15 @@ namespace CleanArchitecture.Infrastructure.Services
             // always return ok response to prevent email enumeration
             if (account == null) throw new ApiException("User not found");
 
-            var code = await _userManager.GeneratePasswordResetTokenAsync(account);
-            var route = "api/account/reset-password/";
-            var _enpointUri = new Uri(string.Concat($"{origin}/", route));
+            // User Service will handle token generation and email sending
+            await _userService.RequestPasswordResetInServiceAsync(model.Email);
+
             var emailRequest = new EmailRequest()
             {
-                Body = $"You reset token is - {code}",
+                Body = "Password reset email sent via User Service.",
                 To = model.Email,
                 Subject = "Reset Password",
             };
-            //TODO: Attach Email Service here and configure it via appsettings
-            //await _emailService.SendAsync(emailRequest);
             return emailRequest;
         }
 
@@ -293,14 +291,22 @@ namespace CleanArchitecture.Infrastructure.Services
         {
             var account = await _userManager.FindByEmailAsync(model.Email);
             if (account == null) throw new ApiException($"No Accounts Registered with {model.Email}.");
-            var result = await _userManager.ResetPasswordAsync(account, model.Token, model.Password);
+            
+            // Confirm with User Service
+            await _userService.ConfirmPasswordResetInServiceAsync(model.Token, model.Password);
+
+            // If the above succeeds, we update the local Identity password
+            account.PasswordHash = _userManager.PasswordHasher.HashPassword(account, model.Password);
+            var result = await _userManager.UpdateAsync(account);
+
             if (result.Succeeded)
             {
                 return  $"Password Resetted.";
             }
             else
             {
-                throw new ApiException($"Error occured while reseting the password.");
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new ApiException($"Error occured while reseting the password: {errors}");
             }
         }
 
@@ -309,7 +315,17 @@ namespace CleanArchitecture.Infrastructure.Services
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) throw new ApiException("User not found.");
 
-            var result = await _userManager.ChangePasswordAsync(user, request.OldPassword, request.NewPassword);
+            // Verify old password manually first
+            var checkPassword = await _userManager.CheckPasswordAsync(user, request.OldPassword);
+            if (!checkPassword) throw new ApiException("Invalid old password.");
+
+            // 1. Change password in User Service
+            await _userService.ChangePasswordInServiceAsync(userId, request.OldPassword, request.NewPassword);
+
+            // 2. Change password in local Identity DB
+            user.PasswordHash = _userManager.PasswordHasher.HashPassword(user, request.NewPassword);
+            var result = await _userManager.UpdateAsync(user);
+
             if (!result.Succeeded)
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
