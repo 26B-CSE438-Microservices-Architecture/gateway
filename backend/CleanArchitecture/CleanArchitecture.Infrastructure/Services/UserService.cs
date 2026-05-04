@@ -449,7 +449,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 email = request.Email,
                 phone = request.PhoneNumber ?? "",
                 password = request.Password,
-                role = "CUSTOMER"
+                role = string.IsNullOrEmpty(request.Role) ? "CUSTOMER" : request.Role.ToUpper()
             };
             var req = BuildInternalRequest(HttpMethod.Post, "api/v1/users/register", body);
             var response = await _httpClient.SendAsync(req);
