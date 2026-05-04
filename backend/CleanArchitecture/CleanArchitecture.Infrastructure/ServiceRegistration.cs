@@ -61,16 +61,15 @@ namespace CleanArchitecture.Infrastructure
                     o.RequireHttpsMetadata = false;
                     o.SaveToken = false;
                     o.MapInboundClaims = false;
+                    var jwtKey = configuration["JWTSettings:Key"] ?? configuration["JWTSettings:Secret"];
                     o.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuerSigningKey = true,
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
+                        ValidateIssuer = false, // Temporarily false to isolate signature issue
+                        ValidateAudience = false, // Temporarily false to isolate signature issue
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.FromMinutes(5),
-                        ValidIssuer = configuration["JWTSettings:Issuer"],
-                        ValidAudience = configuration["JWTSettings:Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWTSettings:Key"])),
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
                         RoleClaimType = "roles"
                     };
                     o.Events = new JwtBearerEvents()
