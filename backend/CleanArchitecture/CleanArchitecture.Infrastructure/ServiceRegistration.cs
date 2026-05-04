@@ -61,15 +61,16 @@ namespace CleanArchitecture.Infrastructure
                     o.RequireHttpsMetadata = false;
                     o.SaveToken = false;
                     o.MapInboundClaims = false;
-                    var jwtKey = configuration["JWTSettings:Key"] ?? configuration["JWTSettings:Secret"];
+                    var jwtKeyStr = configuration["JWTSettings:Key"] ?? configuration["JWTSettings:Secret"] ?? "Default_Secure_Key_For_Gateway_Service_2026_!@#";
+                    var jwtKeyBytes = Encoding.UTF8.GetBytes(jwtKeyStr);
                     o.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuerSigningKey = true,
-                        ValidateIssuer = false, // Temporarily false to isolate signature issue
-                        ValidateAudience = false, // Temporarily false to isolate signature issue
+                        ValidateIssuer = false,
+                        ValidateAudience = false,
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.FromMinutes(5),
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+                        IssuerSigningKey = new SymmetricSecurityKey(jwtKeyBytes),
                         RoleClaimType = "roles"
                     };
                     o.Events = new JwtBearerEvents()

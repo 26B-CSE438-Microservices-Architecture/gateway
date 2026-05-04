@@ -204,7 +204,8 @@ namespace CleanArchitecture.Infrastructure.Services
                 claimsList.Add(new Claim("roles", role));
             }
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
+            var jwtKeyStr = _jwtSettings.Key ?? _jwtSettings.Secret ?? "Default_Secure_Key_For_Gateway_Service_2026_!@#";
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKeyStr));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var tokenDescriptor = new SecurityTokenDescriptor
