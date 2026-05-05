@@ -170,4 +170,72 @@ namespace CleanArchitecture.Core.DTOs.Order
         [JsonPropertyName("data")]
         public List<T> Data { get; set; }
     }
+
+    // --- Order Service Internal Request (Gateway → Java) ---
+    public class OrderServiceAddCartItemRequest
+    {
+        [JsonPropertyName("menuItemId")]
+        public string MenuItemId { get; set; }
+
+        [JsonPropertyName("restaurantId")]
+        public string RestaurantId { get; set; }
+
+        [JsonPropertyName("quantity")]
+        public int Quantity { get; set; }
+
+        [JsonPropertyName("specialInstructions")]
+        public string SpecialInstructions { get; set; }
+    }
+
+    // --- Order Service Internal Responses (Java → Gateway) ---
+    public class OsCartResponse
+    {
+        [JsonPropertyName("cartId")]
+        public string CartId { get; set; }
+
+        [JsonPropertyName("restaurantId")]
+        public string RestaurantId { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [JsonPropertyName("items")]
+        public List<OsCartItem> Items { get; set; } = new();
+
+        [JsonPropertyName("total")]
+        public OsMoney Total { get; set; }
+    }
+
+    public class OsCartItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; }
+
+        [JsonPropertyName("menuItemId")]
+        public string MenuItemId { get; set; }
+
+        [JsonPropertyName("menuItemName")]
+        public string MenuItemName { get; set; }
+
+        [JsonPropertyName("quantity")]
+        public int Quantity { get; set; }
+
+        [JsonPropertyName("unitPrice")]
+        public OsMoney UnitPrice { get; set; }
+
+        [JsonPropertyName("totalPrice")]
+        public OsMoney TotalPrice { get; set; }
+
+        [JsonPropertyName("specialInstructions")]
+        public string SpecialInstructions { get; set; }
+    }
+
+    public class OsMoney
+    {
+        [JsonPropertyName("amount")]
+        public double Amount { get; set; }
+
+        [JsonPropertyName("currency")]
+        public string Currency { get; set; }
+    }
 }

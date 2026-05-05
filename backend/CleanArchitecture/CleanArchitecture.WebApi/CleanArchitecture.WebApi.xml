@@ -92,6 +92,8 @@
         <member name="M:CleanArchitecture.WebApi.Controllers.CartController.AddToCart(CleanArchitecture.Core.DTOs.Order.AddCartItemRequest)">
             <summary>
             Adds a product to the user's basket.
+            Gateway adapts the request: fetches product from VendorService to resolve restaurantId,
+            then sends the enriched request to Order Service in the expected format.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.CartController.UpdateItem(System.String,CleanArchitecture.Core.DTOs.Order.UpdateCartItemRequest)">

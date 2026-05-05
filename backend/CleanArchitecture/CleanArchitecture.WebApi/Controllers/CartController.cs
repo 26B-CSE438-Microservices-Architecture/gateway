@@ -1,4 +1,5 @@
 using CleanArchitecture.Core.DTOs.Order;
+using CleanArchitecture.Core.DTOs.Vendor;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -35,40 +36,41 @@ namespace CleanArchitecture.WebApi.Controllers
 
         /// <summary>
         /// Adds a product to the user's basket.
+        /// Gateway adapts the request: fetches product from VendorService to resolve restaurantId,
+        /// then sends the enriched request to Order Service in the expected format.
         /// </summary>
         [HttpPost("items")]
         public async Task<IActionResult> AddToCart([FromBody] AddCartItemRequest request)
         {
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            // 1. Ürünü çek, hangi restorana (VendorId) ait olduğunu bul
+            ProductDto product;
             try
             {
-                return Ok(await _orderService.AddToCartAsync(userId, request));
+                product = await _vendorService.GetProductByIdAsync(request.ProductId);
             }
-            catch (ApiException ex) when (ex.ErrorCode == "NOT_FOUND" || ex.ErrorCode == "PRODUCT_NOT_FOUND" || ex.Message.Contains("PRODUCT_NOT_FOUND") || ex.Message.Contains("Product not found"))
+            catch
             {
-                // Attempt to fix synchronization: Fetch from Vendor Service and push to Order Service
-                try 
-                {
-                    var product = await _vendorService.GetProductByIdAsync(request.ProductId);
-                    if (product != null)
-                    {
-                        await _orderService.SyncProductAsync(new SyncProductRequest
-                        {
-                            ProductId = product.Id,
-                            Name = product.Name,
-                            Price = product.Price,
-                            VendorId = product.VendorId ?? "unknown_vendor"
-                        });
-
-                        // Retry adding to cart
-                        return Ok(await _orderService.AddToCartAsync(userId, request));
-                    }
-                }
-                catch { }
-
-                throw;
+                return NotFound(new { error = "PRODUCT_NOT_FOUND", message = "Ürün bulunamadı." });
             }
+
+            if (product == null)
+            {
+                return NotFound(new { error = "PRODUCT_NOT_FOUND", message = "Ürün bulunamadı." });
+            }
+
+            // 2. Order Service'in beklediği formatta istek oluştur
+            var osRequest = new OrderServiceAddCartItemRequest
+            {
+                MenuItemId = product.Id,
+                RestaurantId = product.VendorId,
+                Quantity = request.Quantity
+            };
+
+            // 3. Gönder
+            return Ok(await _orderService.AddToCartAsync(userId, osRequest));
         }
 
         /// <summary>
@@ -91,7 +93,8 @@ namespace CleanArchitecture.WebApi.Controllers
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-            return Ok(await _orderService.RemoveFromCartAsync(userId, productId));
+            await _orderService.RemoveFromCartAsync(userId, productId);
+            return NoContent();
         }
 
         /// <summary>

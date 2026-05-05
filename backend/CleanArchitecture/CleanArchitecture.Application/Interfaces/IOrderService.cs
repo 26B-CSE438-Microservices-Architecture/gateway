@@ -8,9 +8,9 @@ namespace CleanArchitecture.Core.Interfaces
     {
         // --- Cart Management ---
         Task<CartResponse> GetCartAsync(string userId);
-        Task<CartResponse> AddToCartAsync(string userId, AddCartItemRequest request);
+        Task<CartResponse> AddToCartAsync(string userId, OrderServiceAddCartItemRequest request);
         Task<CartResponse> UpdateCartItemAsync(string userId, string productId, UpdateCartItemRequest request);
-        Task<CartResponse> RemoveFromCartAsync(string userId, string productId);
+        Task RemoveFromCartAsync(string userId, string productId);
         Task ClearCartAsync(string userId);
         Task<OrderResponse> CheckoutAsync(string userId, CheckoutRequest request, string idempotencyKey);
 
