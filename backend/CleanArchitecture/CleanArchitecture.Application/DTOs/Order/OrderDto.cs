@@ -37,6 +37,13 @@ namespace CleanArchitecture.Core.DTOs.Order
         [JsonPropertyName("productId")]
         public string ProductId { get; set; }
 
+        /// <summary>
+        /// Opsiyonel: Frontend'in bildiği restaurantId.
+        /// Gönderilirse VendorService'e çağrı yapılmaz, direkt kullanılır.
+        /// </summary>
+        [JsonPropertyName("restaurantId")]
+        public string RestaurantId { get; set; }
+
         [JsonPropertyName("quantity")]
         public int Quantity { get; set; }
     }

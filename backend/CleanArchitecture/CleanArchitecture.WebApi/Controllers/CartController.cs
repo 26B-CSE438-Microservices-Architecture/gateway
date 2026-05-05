@@ -36,8 +36,8 @@ namespace CleanArchitecture.WebApi.Controllers
 
         /// <summary>
         /// Adds a product to the user's basket.
-        /// Gateway adapts the request: fetches product from VendorService to resolve restaurantId,
-        /// then sends the enriched request to Order Service in the expected format.
+        /// If restaurantId is provided in the request, it is used directly (fast path).
+        /// Otherwise Gateway fetches the product from VendorService to resolve restaurantId (slow path).
         /// </summary>
         [HttpPost("items")]
         public async Task<IActionResult> AddToCart([FromBody] AddCartItemRequest request)
@@ -45,31 +45,47 @@ namespace CleanArchitecture.WebApi.Controllers
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-            // 1. Ürünü çek, hangi restorana (VendorId) ait olduğunu bul
-            ProductDto product;
-            try
+            string menuItemId;
+            string restaurantId;
+
+            if (!string.IsNullOrEmpty(request.RestaurantId))
             {
-                product = await _vendorService.GetProductByIdAsync(request.ProductId);
+                // Fast path: frontend sent restaurantId — no VendorService lookup needed.
+                // productId is the menuItemId in Order Service's domain.
+                menuItemId = request.ProductId;
+                restaurantId = request.RestaurantId;
             }
-            catch
+            else
             {
-                return NotFound(new { error = "PRODUCT_NOT_FOUND", message = "Ürün bulunamadı." });
+                // Slow path: resolve restaurantId via VendorService (requires GET /api/v1/products/{id}).
+                ProductDto product;
+                try
+                {
+                    product = await _vendorService.GetProductByIdAsync(request.ProductId);
+                }
+                catch
+                {
+                    return NotFound(new { error = "PRODUCT_NOT_FOUND", message = "Ürün bulunamadı. Lütfen restaurantId de gönderin." });
+                }
+
+                if (product == null)
+                    return NotFound(new { error = "PRODUCT_NOT_FOUND", message = "Ürün bulunamadı." });
+
+                menuItemId = product.Id;
+                restaurantId = product.VendorId;
             }
 
-            if (product == null)
-            {
-                return NotFound(new { error = "PRODUCT_NOT_FOUND", message = "Ürün bulunamadı." });
-            }
+            if (string.IsNullOrEmpty(menuItemId) || string.IsNullOrEmpty(restaurantId))
+                return BadRequest(new { error = "INVALID_REQUEST", message = "menuItemId ve restaurantId zorunludur." });
 
-            // 2. Order Service'in beklediği formatta istek oluştur
+            // Build and send Order Service request
             var osRequest = new OrderServiceAddCartItemRequest
             {
-                MenuItemId = product.Id,
-                RestaurantId = product.VendorId,
+                MenuItemId = menuItemId,
+                RestaurantId = restaurantId,
                 Quantity = request.Quantity
             };
 
-            // 3. Gönder
             return Ok(await _orderService.AddToCartAsync(userId, osRequest));
         }
 
