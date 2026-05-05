@@ -41,6 +41,13 @@ namespace CleanArchitecture.Infrastructure.Services
                 if (!string.IsNullOrEmpty(auth))
                     req.Headers.TryAddWithoutValidation("Authorization", auth);
 
+                // Forward X-User-Id header (required when Payment Service runs with SKIP_AUTH=true,
+                // and also useful as a fallback identity signal in all modes).
+                var userId = ctx.User?.FindFirst("uid")?.Value
+                          ?? ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(userId))
+                    req.Headers.TryAddWithoutValidation("X-User-Id", userId);
+
                 // Forward Idempotency-Key if present
                 var idempotencyKey = ctx.Request.Headers["Idempotency-Key"].ToString();
                 if (!string.IsNullOrEmpty(idempotencyKey))
