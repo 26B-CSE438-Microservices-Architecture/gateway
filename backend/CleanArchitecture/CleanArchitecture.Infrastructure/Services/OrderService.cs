@@ -4,6 +4,7 @@ using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -103,37 +104,69 @@ namespace CleanArchitecture.Infrastructure.Services
             return await response.Content.ReadFromJsonAsync<T>(_jsonOpts);
         }
 
+        // ─── Mapper: Java OsCartResponse → C# CartResponse ─────────────────────
+
+        private CartResponse MapToCartResponse(OsCartResponse osResponse)
+        {
+            if (osResponse == null) return new CartResponse();
+            return new CartResponse
+            {
+                TotalAmount = osResponse.Total?.Amount ?? 0,
+                Items = osResponse.Items?.Select(i => new CartItemDto
+                {
+                    ProductId = i.MenuItemId,
+                    Name = i.MenuItemName,
+                    Price = i.UnitPrice?.Amount ?? 0,
+                    Quantity = i.Quantity
+                }).ToList() ?? new List<CartItemDto>()
+            };
+        }
+
+        private async Task SendVoidAsync(HttpRequestMessage req)
+        {
+            var response = await _httpClient.SendAsync(req);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                throw new NotFoundException("NOT_FOUND", "Resource not found on Order Service");
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new ApiException("ORDER_SERVICE_ERROR", errorBody);
+            }
+        }
+
         // ─── Cart Management ──────────────────────────────────────────────────────
 
         public async Task<CartResponse> GetCartAsync(string userId)
         {
             var req = BuildRequest(HttpMethod.Get, "cart");
-            return await SendAsync<CartResponse>(req);
+            var osResponse = await SendAsync<OsCartResponse>(req);
+            return MapToCartResponse(osResponse);
         }
 
-        public async Task<CartResponse> AddToCartAsync(string userId, AddCartItemRequest request)
+        public async Task<CartResponse> AddToCartAsync(string userId, OrderServiceAddCartItemRequest request)
         {
             var req = BuildRequest(HttpMethod.Post, "cart/items", request);
-            return await SendAsync<CartResponse>(req);
+            var osResponse = await SendAsync<OsCartResponse>(req);
+            return MapToCartResponse(osResponse);
         }
 
         public async Task<CartResponse> UpdateCartItemAsync(string userId, string productId, UpdateCartItemRequest request)
         {
             var req = BuildRequest(HttpMethod.Put, $"cart/items/{productId}", request);
-            return await SendAsync<CartResponse>(req);
+            var osResponse = await SendAsync<OsCartResponse>(req);
+            return MapToCartResponse(osResponse);
         }
 
-        public async Task<CartResponse> RemoveFromCartAsync(string userId, string productId)
+        public async Task RemoveFromCartAsync(string userId, string productId)
         {
             var req = BuildRequest(HttpMethod.Delete, $"cart/items/{productId}");
-            return await SendAsync<CartResponse>(req);
+            await SendVoidAsync(req);
         }
 
         public async Task ClearCartAsync(string userId)
         {
             var req = BuildRequest(HttpMethod.Delete, "cart");
-            var response = await _httpClient.SendAsync(req);
-            // Accept 204 No Content or 200 OK
+            await SendVoidAsync(req);
         }
 
         public async Task<OrderResponse> CheckoutAsync(string userId, CheckoutRequest request, string idempotencyKey)
@@ -170,7 +203,8 @@ namespace CleanArchitecture.Infrastructure.Services
         public async Task<CartResponse> ReorderAsync(string userId, string orderId)
         {
             var req = BuildRequest(HttpMethod.Post, $"orders/{orderId}/reorder");
-            return await SendAsync<CartResponse>(req);
+            var osResponse = await SendAsync<OsCartResponse>(req);
+            return MapToCartResponse(osResponse);
         }
 
         public async Task<OrderResponse> RequestRefundAsync(string userId, string orderId)
