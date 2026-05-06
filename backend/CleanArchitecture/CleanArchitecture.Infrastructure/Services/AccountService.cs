@@ -171,6 +171,10 @@ namespace CleanArchitecture.Infrastructure.Services
             if (result.Succeeded)
             {
                 var role = string.IsNullOrEmpty(request.Role) ? Roles.Customer.ToString() : request.Role;
+                if (!await _roleManager.RoleExistsAsync(role))
+                {
+                    await _roleManager.CreateAsync(new IdentityRole(role));
+                }
                 await _userManager.AddToRoleAsync(user, role);
                 return new RegisterResponse
                 {
