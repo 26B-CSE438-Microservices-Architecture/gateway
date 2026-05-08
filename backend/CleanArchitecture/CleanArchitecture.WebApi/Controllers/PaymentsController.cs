@@ -27,6 +27,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> InitializePayment([FromBody] PaymentInitRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
             
             var result = await _paymentService.InitializePaymentAsync(userId, request, idempotencyKey);
@@ -52,6 +53,9 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPost("{id}/capture")]
         public async Task<IActionResult> CapturePayment(string id, [FromBody] PaymentCaptureRequest request)
         {
+            var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
             var result = await _paymentService.CapturePaymentAsync(id, request.Amount);
             return Ok(new { payment = result });
         }
@@ -63,6 +67,9 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPost("{id}/cancel")]
         public async Task<IActionResult> CancelPayment(string id, [FromBody] PaymentCancelRequest request)
         {
+            var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
             var result = await _paymentService.CancelPaymentAsync(id, request.Reason);
             return Ok(new { payment = result });
         }
@@ -74,6 +81,9 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetPayment(string id)
         {
+            var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
             var result = await _paymentService.GetPaymentByIdAsync(id);
             return Ok(new { payment = result });
         }

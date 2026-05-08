@@ -86,6 +86,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _accountService.UpdateProfileAsync(userId, request));
         }
 
@@ -97,6 +98,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> DeleteAccount(DeleteAccountRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _accountService.DeleteAccountAsync(userId, request));
         }
 
@@ -138,6 +140,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public IActionResult GetCurrentUser()
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             var email = User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email);
             var roles = User.FindAll("roles").Select(c => c.Value).ToList();
 
