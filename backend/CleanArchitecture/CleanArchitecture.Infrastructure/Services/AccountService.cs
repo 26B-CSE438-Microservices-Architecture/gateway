@@ -170,7 +170,12 @@ namespace CleanArchitecture.Infrastructure.Services
             var result = await _userManager.CreateAsync(user, request.Password);
             if (result.Succeeded)
             {
-                var role = string.IsNullOrEmpty(request.Role) ? Roles.Customer.ToString() : request.Role;
+                var role = string.IsNullOrEmpty(request.Role) ? "RestaurantOwner" : request.Role;
+                if (role.Equals("RESTAURANT_OWNER", StringComparison.OrdinalIgnoreCase) || role.Equals("RestaurantOwner", StringComparison.OrdinalIgnoreCase))
+                {
+                    role = "RestaurantOwner";
+                }
+
                 if (!await _roleManager.RoleExistsAsync(role))
                 {
                     await _roleManager.CreateAsync(new IdentityRole(role));

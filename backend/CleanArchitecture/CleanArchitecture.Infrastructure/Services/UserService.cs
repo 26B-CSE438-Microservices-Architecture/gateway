@@ -442,6 +442,11 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public async Task<string> RegisterUserInServiceAsync(CleanArchitecture.Core.DTOs.Account.RegisterRequest request)
         {
+            var rawRole = string.IsNullOrEmpty(request.Role) ? "RESTAURANT_OWNER" : request.Role;
+            var finalRole = (rawRole.Equals("RESTAURANT_OWNER", StringComparison.OrdinalIgnoreCase) || rawRole.Equals("RestaurantOwner", StringComparison.OrdinalIgnoreCase)) 
+                ? "RESTAURANT_OWNER" 
+                : rawRole.ToUpper();
+
             var body = new
             {
                 name = request.Name ?? "",
@@ -449,7 +454,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 email = request.Email,
                 phone = request.PhoneNumber ?? "",
                 password = request.Password,
-                role = string.IsNullOrEmpty(request.Role) ? "CUSTOMER" : request.Role.ToUpper()
+                role = finalRole
             };
             var req = BuildInternalRequest(HttpMethod.Post, "api/v1/users/register", body);
             var response = await _httpClient.SendAsync(req);
