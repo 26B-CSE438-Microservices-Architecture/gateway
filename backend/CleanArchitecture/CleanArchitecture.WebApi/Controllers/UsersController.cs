@@ -29,6 +29,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> GetProfile()
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _userService.GetProfileAsync(userId));
         }
 
@@ -40,6 +41,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> UpdateProfile([FromBody] UserUpdateProfileRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _userService.UpdateProfileAsync(userId, request));
         }
 
@@ -51,6 +53,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> GetAddresses()
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _userService.GetAddressesAsync(userId));
         }
 
@@ -62,6 +65,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> CreateAddress([FromBody] CreateAddressRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             var address = await _userService.CreateAddressAsync(userId, request);
             return StatusCode(201, address);
         }
@@ -74,6 +78,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> UpdateAddress(string id, [FromBody] CreateAddressRequest request)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             var address = await _userService.UpdateAddressAsync(userId, id, request);
             return Ok(address);
         }
@@ -86,6 +91,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> DeleteAddress(string id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             await _userService.DeleteAddressAsync(userId, id);
             return NoContent();
         }
@@ -98,6 +104,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> SetCurrentAddress(string id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             await _userService.SetCurrentAddressAsync(userId, id);
             return Ok(new { message = "Current address updated" });
         }
@@ -112,6 +119,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> GetFavorites([FromQuery] int page = 1, [FromQuery] int limit = 20)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
             // 1. Fetch favorite IDs from User Service (Inner Contract)
             var userFavorites = await _userService.GetFavoritesAsync(userId, page, limit);
@@ -152,6 +160,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> AddFavorite(string vendor_id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             await _userService.AddFavoriteAsync(userId, vendor_id);
             return StatusCode(201, new { message = "Favorite added" });
         }
@@ -164,6 +173,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> RemoveFavorite(string vendor_id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             await _userService.RemoveFavoriteAsync(userId, vendor_id);
             return NoContent();
         }

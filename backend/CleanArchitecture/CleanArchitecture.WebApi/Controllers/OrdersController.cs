@@ -26,6 +26,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> GetMyOrders([FromQuery] string status, [FromQuery] int page = 0, [FromQuery] int size = 10)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.GetMyOrdersAsync(userId, status, page, size));
         }
 
@@ -37,6 +38,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> GetOrder(string id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.GetOrderByIdAsync(userId, id));
         }
 
@@ -48,6 +50,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> CancelOrder(string id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.CancelOrderAsync(userId, id));
         }
 
@@ -59,6 +62,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> Reorder(string id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.ReorderAsync(userId, id));
         }
 
@@ -70,6 +74,7 @@ namespace CleanArchitecture.WebApi.Controllers
         public async Task<IActionResult> RequestRefund(string id)
         {
             var userId = User.FindFirstValue("uid");
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.RequestRefundAsync(userId, id));
         }
     }
