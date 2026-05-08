@@ -122,6 +122,51 @@ namespace CleanArchitecture.Infrastructure.Services
             };
         }
 
+        private static OrderResponse MapToOrderResponse(OsOrderResponse osResponse)
+        {
+            if (osResponse == null) return null;
+
+            return new OrderResponse
+            {
+                OrderId = osResponse.OrderId,
+                Status = osResponse.Status,
+                TotalAmount = osResponse.TotalAmount?.Amount ?? 0,
+                Currency = osResponse.TotalAmount?.Currency ?? "TRY",
+                DeliveryAddress = osResponse.DeliveryAddress,
+                CreatedAt = osResponse.CreatedAt,
+                UpdatedAt = osResponse.CreatedAt,
+                Items = osResponse.Items?.Select(i => new OrderItemDto
+                {
+                    Id = i.MenuItemId,
+                    Name = i.MenuItemName,
+                    Quantity = i.Quantity,
+                    Price = i.UnitPrice?.Amount ?? 0
+                }).ToList() ?? new List<OrderItemDto>()
+            };
+        }
+
+        private static PagedResponse<OrderResponse> MapToPagedOrderResponse(OsPagedResponse<OsOrderResponse> osResponse)
+        {
+            if (osResponse == null)
+            {
+                return new PagedResponse<OrderResponse>
+                {
+                    Page = 0,
+                    Size = 0,
+                    Total = 0,
+                    Data = new List<OrderResponse>()
+                };
+            }
+
+            return new PagedResponse<OrderResponse>
+            {
+                Page = osResponse.CurrentPage,
+                Size = osResponse.PageSize,
+                Total = osResponse.TotalElements,
+                Data = osResponse.Content?.Select(MapToOrderResponse).ToList() ?? new List<OrderResponse>()
+            };
+        }
+
         private async Task SendVoidAsync(HttpRequestMessage req)
         {
             var response = await _httpClient.SendAsync(req);
@@ -175,7 +220,7 @@ namespace CleanArchitecture.Infrastructure.Services
             // Also ensure idempotency key is set on the request (BuildRequest reads from HttpContext but let's also add explicitly)
             if (!string.IsNullOrEmpty(idempotencyKey) && !req.Headers.Contains("Idempotency-Key"))
                 req.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
-            return await SendAsync<OrderResponse>(req);
+            return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
         // ─── Customer Order Management ────────────────────────────────────────────
@@ -183,7 +228,7 @@ namespace CleanArchitecture.Infrastructure.Services
         public async Task<OrderResponse> GetOrderByIdAsync(string userId, string orderId)
         {
             var req = BuildRequest(HttpMethod.Get, $"orders/{orderId}");
-            return await SendAsync<OrderResponse>(req);
+            return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
         public async Task<PagedResponse<OrderResponse>> GetMyOrdersAsync(string userId, string status, int page, int size)
@@ -191,7 +236,7 @@ namespace CleanArchitecture.Infrastructure.Services
             var query = $"orders/my?page={page}&size={size}";
             if (!string.IsNullOrEmpty(status)) query += $"&status={status}";
             var req = BuildRequest(HttpMethod.Get, query);
-            return await SendAsync<PagedResponse<OrderResponse>>(req);
+            return MapToPagedOrderResponse(await SendAsync<OsPagedResponse<OsOrderResponse>>(req));
         }
 
         public async Task<OrderResponse> CancelOrderAsync(string userId, string orderId)
@@ -220,26 +265,26 @@ namespace CleanArchitecture.Infrastructure.Services
             var query = $"orders/restaurant?page={page}&size={size}";
             if (!string.IsNullOrEmpty(status)) query += $"&status={status}";
             var req = BuildRequest(HttpMethod.Get, query);
-            return await SendAsync<PagedResponse<OrderResponse>>(req);
+            return MapToPagedOrderResponse(await SendAsync<OsPagedResponse<OsOrderResponse>>(req));
         }
 
         public async Task<OrderResponse> ConfirmOrderAsync(string restaurantId, string orderId)
         {
             var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/confirm");
-            return await SendAsync<OrderResponse>(req);
+            return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
         public async Task<OrderResponse> RejectOrderAsync(string restaurantId, string orderId)
         {
             var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/reject");
-            return await SendAsync<OrderResponse>(req);
+            return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
         public async Task<OrderResponse> UpdateOrderStatusAsync(string restaurantId, string orderId, string status)
         {
             var body = new { status };
             var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/status", body);
-            return await SendAsync<OrderResponse>(req);
+            return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
         // ─── Internal Operations ──────────────────────────────────────────────────
@@ -250,7 +295,7 @@ namespace CleanArchitecture.Infrastructure.Services
             var req = new HttpRequestMessage(HttpMethod.Post, $"internal/orders/{orderId}/payment-callback");
             AddInternalSecret(req);
             req.Content = JsonContent.Create(body, options: _jsonOpts);
-            return await SendAsync<OrderResponse>(req);
+            return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
         public async Task SyncProductAsync(SyncProductRequest request)

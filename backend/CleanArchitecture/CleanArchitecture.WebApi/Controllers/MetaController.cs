@@ -9,14 +9,18 @@ namespace CleanArchitecture.WebApi.Controllers
         /// Retrieves system information and version details.
         /// </summary>
         [HttpGet("/info")]
-        public ActionResult<string> Info()
+        public IActionResult Info()
         {
             var assembly = typeof(Program).Assembly;
 
             var lastUpdate = System.IO.File.GetLastWriteTime(assembly.Location);
             var version = FileVersionInfo.GetVersionInfo(assembly.Location).ProductVersion;
 
-            return Ok($"Version: {version}, Last Updated: {lastUpdate}");
+            return Ok(new
+            {
+                version,
+                lastUpdated = lastUpdate
+            });
         }
     }
 }

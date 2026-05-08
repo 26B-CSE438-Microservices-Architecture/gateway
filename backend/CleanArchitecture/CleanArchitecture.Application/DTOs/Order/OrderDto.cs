@@ -175,7 +175,7 @@ namespace CleanArchitecture.Core.DTOs.Order
         public long Total { get; set; }
 
         [JsonPropertyName("data")]
-        public List<T> Data { get; set; }
+        public List<T> Data { get; set; } = new();
     }
 
     // --- Order Service Internal Request (Gateway → Java) ---
@@ -244,5 +244,59 @@ namespace CleanArchitecture.Core.DTOs.Order
 
         [JsonPropertyName("currency")]
         public string Currency { get; set; }
+    }
+
+    public class OsOrderResponse
+    {
+        [JsonPropertyName("orderId")]
+        public string OrderId { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; }
+
+        [JsonPropertyName("totalAmount")]
+        public OsMoney TotalAmount { get; set; }
+
+        [JsonPropertyName("deliveryAddress")]
+        public OrderAddressDto DeliveryAddress { get; set; }
+
+        [JsonPropertyName("createdAt")]
+        public DateTime CreatedAt { get; set; }
+
+        [JsonPropertyName("items")]
+        public List<OsOrderItem> Items { get; set; } = new();
+    }
+
+    public class OsOrderItem
+    {
+        [JsonPropertyName("menuItemId")]
+        public string MenuItemId { get; set; }
+
+        [JsonPropertyName("menuItemName")]
+        public string MenuItemName { get; set; }
+
+        [JsonPropertyName("quantity")]
+        public int Quantity { get; set; }
+
+        [JsonPropertyName("unitPrice")]
+        public OsMoney UnitPrice { get; set; }
+    }
+
+    public class OsPagedResponse<T>
+    {
+        [JsonPropertyName("content")]
+        public List<T> Content { get; set; } = new();
+
+        [JsonPropertyName("totalElements")]
+        public long TotalElements { get; set; }
+
+        [JsonPropertyName("totalPages")]
+        public int TotalPages { get; set; }
+
+        [JsonPropertyName("currentPage")]
+        public int CurrentPage { get; set; }
+
+        [JsonPropertyName("pageSize")]
+        public int PageSize { get; set; }
     }
 }
