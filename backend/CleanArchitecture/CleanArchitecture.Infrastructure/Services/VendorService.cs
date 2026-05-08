@@ -41,6 +41,10 @@ namespace CleanArchitecture.Infrastructure.Services
                 var auth = ctx.Request.Headers["Authorization"].ToString();
                 if (!string.IsNullOrEmpty(auth))
                     req.Headers.TryAddWithoutValidation("Authorization", auth);
+
+                var userId = ctx.User?.FindFirst("uid")?.Value;
+                if (!string.IsNullOrEmpty(userId))
+                    req.Headers.TryAddWithoutValidation("X-User-Id", userId);
             }
             if (body != null)
                 req.Content = JsonContent.Create(body, options: _jsonOpts);

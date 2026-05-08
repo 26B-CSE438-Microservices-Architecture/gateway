@@ -168,14 +168,35 @@ namespace CleanArchitecture.Core.DTOs.Order
         [JsonPropertyName("page")]
         public int Page { get; set; }
 
+        [JsonPropertyName("number")]
+        public int Number 
+        { 
+            get => Page; 
+            set => Page = value; 
+        }
+
         [JsonPropertyName("size")]
         public int Size { get; set; }
 
         [JsonPropertyName("total")]
         public long Total { get; set; }
 
+        [JsonPropertyName("totalElements")]
+        public long TotalElements 
+        { 
+            get => Total; 
+            set => Total = value; 
+        }
+
         [JsonPropertyName("data")]
         public List<T> Data { get; set; }
+
+        [JsonPropertyName("content")]
+        public List<T> Content 
+        { 
+            get => Data; 
+            set => Data = value; 
+        }
     }
 
     // --- Order Service Internal Request (Gateway → Java) ---

@@ -51,6 +51,11 @@ namespace CleanArchitecture.Infrastructure.Services
                 if (!string.IsNullOrEmpty(auth))
                     req.Headers.TryAddWithoutValidation("Authorization", auth);
 
+                // Forward user ID if authenticated
+                var userId = ctx.User?.FindFirst("uid")?.Value;
+                if (!string.IsNullOrEmpty(userId))
+                    req.Headers.TryAddWithoutValidation("X-User-Id", userId);
+
                 // Forward idempotency key if present
                 var idempotencyKey = ctx.Request.Headers["Idempotency-Key"].ToString();
                 if (!string.IsNullOrEmpty(idempotencyKey))
