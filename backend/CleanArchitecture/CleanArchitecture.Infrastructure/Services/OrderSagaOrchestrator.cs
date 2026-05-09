@@ -1,6 +1,7 @@
 using CleanArchitecture.Core.DTOs.Order;
 using CleanArchitecture.Core.DTOs.Payment;
 using CleanArchitecture.Core.DTOs.Saga;
+using CleanArchitecture.Core.DTOs.Events;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -21,6 +22,7 @@ namespace CleanArchitecture.Infrastructure.Services
     ///
     /// Bu sınıf, sipariş sürecindeki tüm mikroservis çağrılarını koordine eder.
     /// Hata durumunda compensating transaction'ları otomatik başlatır.
+    /// Her adımın sonunda RabbitMQ üzerinden asenkron event yayınlar.
     ///
     /// SAGA State'leri in-memory Dictionary'de saklanır (production'da Redis/DB kullanılır).
     /// </summary>
@@ -31,6 +33,7 @@ namespace CleanArchitecture.Infrastructure.Services
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IConfiguration _configuration;
         private readonly ILogger<OrderSagaOrchestrator> _logger;
+        private readonly IEventPublisher _eventPublisher;
 
         // In-memory SAGA state store (key: orderId)
         // Production'da bu bir persistent store (Redis, DB) olmalıdır.
@@ -54,13 +57,15 @@ namespace CleanArchitecture.Infrastructure.Services
             IPaymentService paymentService,
             IHttpContextAccessor httpContextAccessor,
             IConfiguration configuration,
-            ILogger<OrderSagaOrchestrator> logger)
+            ILogger<OrderSagaOrchestrator> logger,
+            IEventPublisher eventPublisher)
         {
             _orderService         = orderService;
             _paymentService       = paymentService;
             _httpContextAccessor  = httpContextAccessor;
             _configuration        = configuration;
             _logger               = logger;
+            _eventPublisher       = eventPublisher;
         }
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -115,6 +120,10 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.CurrentStep = STEP_PAYMENT_INIT;
 
                 _logger.LogInformation("[SAGA:{SagaId}] Adım 1 ✓ Sipariş oluştu. OrderId={OrderId}", sagaId, order.OrderId);
+
+                // RabbitMQ: Sipariş oluşturuldu event'i yayınla
+                await _eventPublisher.PublishAsync("order.created", saga.OrderId, sagaId, userId,
+                    new { saga.TotalAmount, saga.Currency, status = "PAYMENT_PENDING" });
             }
             catch (Exception ex)
             {
@@ -123,6 +132,11 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.Status        = nameof(SagaStatus.Failed);
                 saga.FailureReason = $"Checkout failed: {ex.Message}";
                 saga.UpdatedAt     = DateTime.UtcNow;
+
+                // RabbitMQ: SAGA başarısız event'i yayınla
+                await _eventPublisher.PublishAsync("saga.failed", null, sagaId, userId,
+                    new { step = STEP_CHECKOUT, reason = ex.Message });
+
                 return saga;
             }
 
@@ -172,6 +186,10 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.UpdatedAt   = DateTime.UtcNow;
 
                 _logger.LogInformation("[SAGA:{SagaId}] Adım 2 ✓ Ödeme başlatıldı. PaymentId={PaymentId}", sagaId, saga.PaymentId);
+
+                // RabbitMQ: Ödeme başlatıldı event'i yayınla
+                await _eventPublisher.PublishAsync("payment.initiated", saga.OrderId, sagaId, userId,
+                    new { saga.PaymentId, saga.TotalAmount, saga.Currency });
             }
             catch (Exception ex)
             {
@@ -185,6 +203,12 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.Status    = nameof(SagaStatus.Compensated);
                 saga.UpdatedAt = DateTime.UtcNow;
                 saga.FailureReason = $"Payment initialization failed: {ex.Message}";
+
+                // RabbitMQ: Kompanasyon event'leri yayınla
+                await _eventPublisher.PublishAsync("order.cancelled", saga.OrderId, sagaId, userId,
+                    new { reason = "payment_init_failed", compensatedBy = "gateway" });
+                await _eventPublisher.PublishAsync("saga.failed", saga.OrderId, sagaId, userId,
+                    new { step = STEP_PAYMENT_INIT, reason = ex.Message });
             }
 
             _sagaStore[saga.OrderId] = saga;
@@ -229,6 +253,10 @@ namespace CleanArchitecture.Infrastructure.Services
                     await _orderService.ProcessPaymentCallbackAsync(saga.OrderId, "HOLD_CONFIRMED");
 
                     _logger.LogInformation("[SAGA:{SagaId}] Adım 3 ✓ Ödeme authorize edildi. Para bloke edildi.", saga.SagaId);
+
+                    // RabbitMQ: Ödeme authorize event'i yayınla
+                    await _eventPublisher.PublishAsync("payment.authorized", saga.OrderId, saga.SagaId, saga.UserId,
+                        new { saga.PaymentId, status = "AUTHORIZED" });
                 }
                 else
                 {
@@ -245,6 +273,12 @@ namespace CleanArchitecture.Infrastructure.Services
 
                     saga.Status        = nameof(SagaStatus.Compensated);
                     saga.FailureReason = $"Payment authorization failed: {failReason}";
+
+                    // RabbitMQ: Kompanasyon event'leri yayınla
+                    await _eventPublisher.PublishAsync("payment.cancelled", saga.OrderId, saga.SagaId, saga.UserId,
+                        new { saga.PaymentId, reason = "authorization_failed" });
+                    await _eventPublisher.PublishAsync("order.cancelled", saga.OrderId, saga.SagaId, saga.UserId,
+                        new { reason = "payment_authorization_failed", compensatedBy = "gateway" });
                 }
             }
             catch (Exception ex)
@@ -291,6 +325,10 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.CurrentStep = STEP_PAYMENT_CAPTURE;
 
                 _logger.LogInformation("[SAGA:{SagaId}] Adım 4 ✓ Restoran onayladı. OrderId={OrderId}", saga.SagaId, orderId);
+
+                // RabbitMQ: Restoran onay event'i yayınla
+                await _eventPublisher.PublishAsync("restaurant.confirmed", orderId, saga.SagaId, saga.UserId,
+                    new { restaurantId });
             }
             catch (Exception ex)
             {
@@ -321,6 +359,12 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.CurrentStep = null; // Tüm adımlar tamamlandı
 
                 _logger.LogInformation("[SAGA:{SagaId}] Adım 5 ✓ Para çekildi. SAGA tamamlandı.", saga.SagaId);
+
+                // RabbitMQ: Ödeme çekildi ve sipariş tamamlandı event'leri yayınla
+                await _eventPublisher.PublishAsync("payment.captured", orderId, saga.SagaId, saga.UserId,
+                    new { saga.PaymentId, saga.TotalAmount });
+                await _eventPublisher.PublishAsync("order.completed", orderId, saga.SagaId, saga.UserId,
+                    new { saga.TotalAmount, saga.Currency });
             }
             catch (Exception ex)
             {
@@ -337,6 +381,12 @@ namespace CleanArchitecture.Infrastructure.Services
 
                 saga.Status        = nameof(SagaStatus.Compensated);
                 saga.FailureReason = $"Payment capture failed: {ex.Message}";
+
+                // RabbitMQ: Kompanasyon event'leri yayınla
+                await _eventPublisher.PublishAsync("payment.cancelled", orderId, saga.SagaId, saga.UserId,
+                    new { saga.PaymentId, reason = "capture_failed" });
+                await _eventPublisher.PublishAsync("order.cancelled", orderId, saga.SagaId, saga.UserId,
+                    new { reason = "capture_failed", compensatedBy = "gateway" });
             }
 
             saga.UpdatedAt = DateTime.UtcNow;
@@ -377,6 +427,17 @@ namespace CleanArchitecture.Infrastructure.Services
             saga.Status        = nameof(SagaStatus.Compensated);
             saga.FailureReason = $"Restaurant rejected: {reason}";
             saga.UpdatedAt     = DateTime.UtcNow;
+
+            // RabbitMQ: Restoran reddi kompanasyon event'leri yayınla
+            await _eventPublisher.PublishAsync("restaurant.rejected", orderId, saga.SagaId, saga.UserId,
+                new { restaurantId, reason });
+            await _eventPublisher.PublishAsync("order.cancelled", orderId, saga.SagaId, saga.UserId,
+                new { reason = $"restaurant_rejected: {reason}", compensatedBy = "gateway" });
+            if (!string.IsNullOrEmpty(saga.PaymentId))
+            {
+                await _eventPublisher.PublishAsync("payment.cancelled", orderId, saga.SagaId, saga.UserId,
+                    new { saga.PaymentId, reason = "restaurant_rejected" });
+            }
             _sagaStore[orderId] = saga;
             return saga;
         }
@@ -404,6 +465,15 @@ namespace CleanArchitecture.Infrastructure.Services
             saga.Status        = nameof(SagaStatus.Compensated);
             saga.FailureReason = "Cancelled by customer";
             saga.UpdatedAt     = DateTime.UtcNow;
+
+            // RabbitMQ: Müşteri iptali kompanasyon event'leri yayınla
+            await _eventPublisher.PublishAsync("order.cancelled", orderId, saga.SagaId, userId,
+                new { reason = "customer_cancel", compensatedBy = "gateway" });
+            if (!string.IsNullOrEmpty(saga.PaymentId))
+            {
+                await _eventPublisher.PublishAsync("payment.cancelled", orderId, saga.SagaId, userId,
+                    new { saga.PaymentId, reason = "customer_cancel" });
+            }
             _sagaStore[orderId] = saga;
             return saga;
         }
