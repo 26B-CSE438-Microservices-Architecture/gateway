@@ -158,6 +158,13 @@ namespace CleanArchitecture.Infrastructure.Services
 
             // Scoped servisler (OrderService, PaymentService vb.) için yeni scope oluştur
             using var scope = _scopeFactory.CreateScope();
+
+            // SAGA bağlamını set et — BackgroundService'de HttpContext olmadığı için
+            // auth bilgisini SagaCommand üzerinden taşıyoruz.
+            var sagaContext = scope.ServiceProvider.GetRequiredService<ISagaContextAccessor>();
+            sagaContext.AuthToken = command.AuthToken;
+            sagaContext.UserId = command.UserId;
+
             var orchestrator = scope.ServiceProvider.GetRequiredService<IOrderSagaOrchestrator>();
 
             switch (routingKey)
@@ -239,6 +246,13 @@ namespace CleanArchitecture.Infrastructure.Services
 
         [JsonPropertyName("idempotencyKey")]
         public string IdempotencyKey { get; set; }
+
+        /// <summary>
+        /// Orijinal HTTP isteğindeki Authorization header değeri.
+        /// BackgroundService'de HttpContext olmadığı için bu alan üzerinden taşınır.
+        /// </summary>
+        [JsonPropertyName("authToken")]
+        public string AuthToken { get; set; }
 
         [JsonPropertyName("timestamp")]
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;

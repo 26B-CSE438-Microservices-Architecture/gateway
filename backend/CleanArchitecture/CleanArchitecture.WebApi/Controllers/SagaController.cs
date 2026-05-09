@@ -37,7 +37,6 @@ namespace CleanArchitecture.WebApi.Controllers
     {
         private readonly IOrderSagaOrchestrator _orchestrator;
         private readonly RabbitMqConnectionService _rabbitMq;
-        private readonly IEventPublisher _eventPublisher;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -47,13 +46,18 @@ namespace CleanArchitecture.WebApi.Controllers
 
         public SagaController(
             IOrderSagaOrchestrator orchestrator,
-            RabbitMqConnectionService rabbitMq,
-            IEventPublisher eventPublisher)
+            RabbitMqConnectionService rabbitMq)
         {
             _orchestrator   = orchestrator;
             _rabbitMq       = rabbitMq;
-            _eventPublisher = eventPublisher;
         }
+
+        /// <summary>
+        /// Mevcut HTTP isteğindeki Authorization header'ini döndürür.
+        /// BackgroundService'de HttpContext olmadığı için bu değeri
+        /// SagaCommand üzerinden taşıyoruz.
+        /// </summary>
+        private string GetAuthToken() => Request.Headers["Authorization"].ToString();
 
         // ─── ADIM 1+2: Sipariş Başlat (ASENKRON) ──────────────────────────────
 
@@ -89,6 +93,7 @@ namespace CleanArchitecture.WebApi.Controllers
                 CommandType    = SagaBackgroundService.CMD_START,
                 UserId         = userId,
                 IdempotencyKey = idempotencyKey,
+                AuthToken      = GetAuthToken(),
                 Payload        = JsonSerializer.SerializeToElement(request, _jsonOpts)
             };
 
@@ -120,6 +125,7 @@ namespace CleanArchitecture.WebApi.Controllers
             {
                 CommandType = SagaBackgroundService.CMD_PAYMENT_CALLBACK,
                 OrderId     = orderId,
+                AuthToken   = GetAuthToken(),
                 Payload     = JsonSerializer.SerializeToElement(new PaymentCallbackData
                 {
                     PaymentId = paymentId,
@@ -155,6 +161,7 @@ namespace CleanArchitecture.WebApi.Controllers
             {
                 CommandType = SagaBackgroundService.CMD_CONFIRM,
                 OrderId     = orderId,
+                AuthToken   = GetAuthToken(),
                 Payload     = JsonSerializer.SerializeToElement(new RestaurantActionData
                 {
                     RestaurantId = restaurantId
@@ -191,6 +198,7 @@ namespace CleanArchitecture.WebApi.Controllers
             {
                 CommandType = SagaBackgroundService.CMD_REJECT,
                 OrderId     = orderId,
+                AuthToken   = GetAuthToken(),
                 Payload     = JsonSerializer.SerializeToElement(new RestaurantActionData
                 {
                     RestaurantId = restaurantId,
@@ -225,7 +233,8 @@ namespace CleanArchitecture.WebApi.Controllers
             {
                 CommandType = SagaBackgroundService.CMD_CANCEL,
                 OrderId     = orderId,
-                UserId      = userId
+                UserId      = userId,
+                AuthToken   = GetAuthToken()
             };
 
             await PublishCommandAsync(SagaBackgroundService.CMD_CANCEL, command);

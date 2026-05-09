@@ -15,6 +15,7 @@ namespace CleanArchitecture.Infrastructure.Services
     {
         private readonly HttpClient _httpClient;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ISagaContextAccessor _sagaContextAccessor;
 
         private static readonly JsonSerializerOptions _jsonOpts = new JsonSerializerOptions
         {
@@ -22,10 +23,14 @@ namespace CleanArchitecture.Infrastructure.Services
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        public PaymentService(IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor)
+        public PaymentService(
+            IHttpClientFactory httpClientFactory,
+            IHttpContextAccessor httpContextAccessor,
+            ISagaContextAccessor sagaContextAccessor)
         {
             _httpClient = httpClientFactory.CreateClient("payment");
             _httpContextAccessor = httpContextAccessor;
+            _sagaContextAccessor = sagaContextAccessor;
         }
 
         // ─── Helper ──────────────────────────────────────────────────────────────
@@ -36,22 +41,28 @@ namespace CleanArchitecture.Infrastructure.Services
             var ctx = _httpContextAccessor.HttpContext;
             if (ctx != null)
             {
-                // Payment Service uses Authorization: Bearer JWT
+                // HTTP pipeline içinden çağrılıyor — header'ları forward et
                 var auth = ctx.Request.Headers["Authorization"].ToString();
                 if (!string.IsNullOrEmpty(auth))
                     req.Headers.TryAddWithoutValidation("Authorization", auth);
 
-                // Forward X-User-Id header (required when Payment Service runs with SKIP_AUTH=true,
-                // and also useful as a fallback identity signal in all modes).
                 var userId = ctx.User?.FindFirst("uid")?.Value
                           ?? ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (!string.IsNullOrEmpty(userId))
                     req.Headers.TryAddWithoutValidation("X-User-Id", userId);
 
-                // Forward Idempotency-Key if present
                 var idempotencyKey = ctx.Request.Headers["Idempotency-Key"].ToString();
                 if (!string.IsNullOrEmpty(idempotencyKey))
                     req.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
+            }
+            else if (_sagaContextAccessor.HasContext)
+            {
+                // BackgroundService üzerinden çağrılıyor — SagaContext'ten oku
+                if (!string.IsNullOrEmpty(_sagaContextAccessor.AuthToken))
+                    req.Headers.TryAddWithoutValidation("Authorization", _sagaContextAccessor.AuthToken);
+
+                if (!string.IsNullOrEmpty(_sagaContextAccessor.UserId))
+                    req.Headers.TryAddWithoutValidation("X-User-Id", _sagaContextAccessor.UserId);
             }
             if (body != null)
                 req.Content = JsonContent.Create(body, options: _jsonOpts);

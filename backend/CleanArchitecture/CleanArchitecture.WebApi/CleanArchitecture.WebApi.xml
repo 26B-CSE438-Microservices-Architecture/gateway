@@ -149,7 +149,8 @@
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.CancelOrder(System.String)">
             <summary>
-            Cancels a pending or held order via SAGA Orchestrator.
+            Cancels a pending or held order via asynchronous SAGA Orchestrator.
+            Publishes saga.command.cancel to RabbitMQ and returns 202 Accepted.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.Reorder(System.String)">
@@ -187,6 +188,12 @@
             Get payment details by ID.
             </summary>
         </member>
+        <member name="T:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController">
+            <summary>
+            Restoran sipariş yönetimi controller'ı.
+            Confirm/Reject işlemleri RabbitMQ üzerinden asenkron SAGA olarak çalışır.
+            </summary>
+        </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.GetRestaurantOrders(System.String,System.Int32,System.Int32)">
             <summary>
             Retrieves paginated orders belonging to the restaurant.
@@ -194,12 +201,14 @@
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.ConfirmOrder(System.String)">
             <summary>
-            Confirms a held order, triggering the payment capture process via SAGA.
+            Confirms a held order, triggering the payment capture process via asynchronous SAGA.
+            Publishes saga.command.confirm to RabbitMQ and returns 202 Accepted.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.RejectOrder(System.String)">
             <summary>
-            Rejects a held order, triggering a payment hold release via SAGA.
+            Rejects a held order, triggering a payment hold release via asynchronous SAGA.
+            Publishes saga.command.reject to RabbitMQ and returns 202 Accepted.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.UpdateStatus(System.String,CleanArchitecture.Core.DTOs.Order.UpdateOrderStatusRequest)">
@@ -227,6 +236,13 @@
                saga.command.reject             → Restoran reddi + Void
                saga.command.cancel             → Müşteri iptali + Compensate
              </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.GetAuthToken">
+            <summary>
+            Mevcut HTTP isteğindeki Authorization header'ini döndürür.
+            BackgroundService'de HttpContext olmadığı için bu değeri
+            SagaCommand üzerinden taşıyoruz.
+            </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.StartSaga(CleanArchitecture.Core.DTOs.Saga.StartOrderSagaRequest)">
              <summary>
