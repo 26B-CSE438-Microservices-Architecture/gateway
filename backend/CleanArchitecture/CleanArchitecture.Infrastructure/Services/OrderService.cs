@@ -282,13 +282,17 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public async Task<OrderResponse> ConfirmOrderAsync(string restaurantId, string orderId)
         {
-            var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/confirm");
+            var body = new { restaurantId = restaurantId ?? "SYSTEM" };
+            var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/confirm", body);
+            AddInternalSecret(req);
             return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
         public async Task<OrderResponse> RejectOrderAsync(string restaurantId, string orderId)
         {
-            var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/reject");
+            var body = new { restaurantId = restaurantId ?? "SYSTEM" };
+            var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/reject", body);
+            AddInternalSecret(req);
             return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 

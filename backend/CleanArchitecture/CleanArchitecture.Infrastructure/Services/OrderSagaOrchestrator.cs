@@ -73,6 +73,22 @@ namespace CleanArchitecture.Infrastructure.Services
         // ADIM 1 + 2: Checkout → Payment Initialization
         // ═══════════════════════════════════════════════════════════════════════
 
+        private static void CleanupOldSagas()
+        {
+            var threshold = DateTime.UtcNow.AddHours(-1);
+            var keysToRemove = _sagaStore
+                .Where(kvp => (kvp.Value.Status == nameof(SagaStatus.PaymentCaptured) || 
+                               kvp.Value.Status == nameof(SagaStatus.Compensated)) && 
+                              kvp.Value.UpdatedAt < threshold)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var key in keysToRemove)
+            {
+                _sagaStore.TryRemove(key, out _);
+            }
+        }
+
         /// <summary>
         /// SAGA başlatır:
         ///   1. Order Service'e checkout isteği gönderir → sipariş oluşur (PAYMENT_PENDING)
@@ -86,6 +102,8 @@ namespace CleanArchitecture.Infrastructure.Services
             StartOrderSagaRequest request,
             string idempotencyKey)
         {
+            CleanupOldSagas();
+
             var saga = new SagaState
             {
                 SagaId    = sagaId,
@@ -350,6 +368,24 @@ namespace CleanArchitecture.Infrastructure.Services
             UpdateStep(saga, STEP_PAYMENT_CAPTURE, "InProgress");
             try
             {
+                if (string.IsNullOrEmpty(saga.PaymentId))
+                {
+                    _logger.LogInformation("[SAGA:{SagaId}] Adım 5: PaymentId hafızada yok, Payment Service'ten aranıyor...", saga.SagaId);
+                    try
+                    {
+                        var payments = await _paymentService.GetPaymentsByOrderIdAsync(orderId);
+                        if (payments != null && payments.Count > 0)
+                        {
+                            saga.PaymentId = payments[0].Id;
+                            _logger.LogInformation("[SAGA:{SagaId}] PaymentId bulundu: {PaymentId}", saga.SagaId, saga.PaymentId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[SAGA:{SagaId}] Ödeme servisinde {OrderId} için ödeme aranırken hata oluştu.", saga.SagaId, orderId);
+                    }
+                }
+
                 if (!string.IsNullOrEmpty(saga.PaymentId))
                 {
                     var amountInMinorUnits = (int)(saga.TotalAmount * 100);

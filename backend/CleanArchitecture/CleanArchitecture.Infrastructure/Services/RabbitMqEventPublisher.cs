@@ -66,12 +66,31 @@ namespace CleanArchitecture.Infrastructure.Services
                     Source    = "gateway"
                 };
 
-                var json = JsonSerializer.Serialize(integrationEvent, _jsonOpts);
+                // Format as MassTransit Envelope for seamless consumption by downstream services
+                var massTransitEnvelope = new
+                {
+                    messageId = integrationEvent.EventId,
+                    correlationId = sagaId,
+                    messageType = new[] { $"urn:message:Gateway.Events:{eventType.Replace(".", "")}" },
+                    message = integrationEvent,
+                    host = new
+                    {
+                        machineName = "GatewayNode",
+                        processName = "Gateway",
+                        assembly = "Gateway",
+                        assemblyVersion = "1.0.0",
+                        frameworkVersion = "9.0",
+                        massTransitVersion = "8.0.0",
+                        operatingSystemVersion = "Linux"
+                    }
+                };
+
+                var json = JsonSerializer.Serialize(massTransitEnvelope, _jsonOpts);
                 var body = Encoding.UTF8.GetBytes(json);
 
                 var properties = new BasicProperties
                 {
-                    ContentType  = "application/json",
+                    ContentType  = "application/vnd.masstransit+json",
                     DeliveryMode = DeliveryModes.Persistent,
                     MessageId    = integrationEvent.EventId,
                     Timestamp    = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
@@ -80,7 +99,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 };
 
                 // Thread-safe publish — paylaşılan channel üzerinde race condition’u önler
-                await _connectionService.PublishAsync(eventType, properties, body);
+                await _connectionService.PublishAsync(RabbitMqConnectionService.ExchangeName, eventType, properties, body);
 
                 _logger.LogInformation(
                     "[RabbitMQ] ✓ Event yayınlandı: {EventType} | OrderId={OrderId} | SagaId={SagaId}",
