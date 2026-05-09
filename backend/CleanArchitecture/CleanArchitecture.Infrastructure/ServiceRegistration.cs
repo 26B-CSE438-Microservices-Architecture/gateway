@@ -49,6 +49,7 @@ namespace CleanArchitecture.Infrastructure
             services.AddTransient<IReviewService, ReviewService>();
             services.AddScoped<ISearchService, SearchService>();
             services.AddTransient<IAdminService, AdminService>();
+            services.AddScoped<IOrderSagaOrchestrator, OrderSagaOrchestrator>();
             #endregion
             services.Configure<JWTSettings>(configuration.GetSection("JWTSettings"));
             services.AddAuthentication(options =>

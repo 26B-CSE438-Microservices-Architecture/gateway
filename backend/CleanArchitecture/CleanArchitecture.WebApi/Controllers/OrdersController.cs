@@ -43,7 +43,7 @@ namespace CleanArchitecture.WebApi.Controllers
         }
 
         /// <summary>
-        /// Cancels a pending or held order.
+        /// Cancels a pending or held order via SAGA Orchestrator.
         /// </summary>
         [Authorize]
         [HttpPost("{id}/cancel")]
@@ -51,7 +51,11 @@ namespace CleanArchitecture.WebApi.Controllers
         {
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
-            return Ok(await _orderService.CancelOrderAsync(userId, id));
+            
+            var sagaService = HttpContext.RequestServices.GetService(typeof(IOrderSagaOrchestrator)) as IOrderSagaOrchestrator;
+            var result = await sagaService.CancelSagaAsync(id, userId);
+            
+            return Ok(new { message = "Order cancelled via SAGA", sagaStatus = result.Status });
         }
 
         /// <summary>

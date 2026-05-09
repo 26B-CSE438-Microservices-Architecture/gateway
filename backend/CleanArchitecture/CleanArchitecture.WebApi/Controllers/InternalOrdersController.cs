@@ -1,6 +1,7 @@
 using CleanArchitecture.Core.DTOs.Order;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 
 namespace CleanArchitecture.WebApi.Controllers
@@ -10,11 +11,12 @@ namespace CleanArchitecture.WebApi.Controllers
     public class InternalOrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
-        private const string InternalSecret = "change-me-in-production";
+        private readonly IConfiguration _configuration;
 
-        public InternalOrdersController(IOrderService orderService)
+        public InternalOrdersController(IOrderService orderService, IConfiguration configuration)
         {
             _orderService = orderService;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -24,9 +26,10 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPost("{id}/payment-callback")]
         public async Task<IActionResult> PaymentCallback(string id, [FromBody] InternalPaymentCallbackRequest request)
         {
-            // Simple X-Internal-Secret validation as per README
+            var configuredSecret = _configuration["InternalSecret"] ?? "change-me-in-production";
             var secret = Request.Headers["X-Internal-Secret"].ToString();
-            if (string.IsNullOrEmpty(secret) || secret != InternalSecret)
+            
+            if (string.IsNullOrEmpty(secret) || secret != configuredSecret)
             {
                 return Unauthorized(new { error = "UNAUTHORIZED", message = "Invalid or missing X-Internal-Secret header." });
             }
