@@ -30,7 +30,38 @@ namespace CleanArchitecture.WebApi.Controllers
         {
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
-            return Ok(await _userService.GetProfileAsync(userId));
+
+            var profile = await _userService.GetProfileAsync(userId);
+            
+            string restaurantId = null;
+            if (profile.Role == "RESTAURANT_OWNER" || profile.Role == "RestaurantOwner")
+            {
+                try
+                {
+                    var vendor = await _vendorService.GetVendorByOwnerIdAsync(userId);
+                    if (vendor != null)
+                    {
+                        restaurantId = vendor.Id;
+                    }
+                }
+                catch
+                {
+                    // Ignore errors, restaurantId remains null
+                }
+            }
+
+            return Ok(new
+            {
+                id = profile.Id,
+                name = profile.Name,
+                email = profile.Email,
+                phone = profile.Phone,
+                role = profile.Role,
+                active = profile.Active,
+                createdAt = profile.CreatedAt,
+                addresses = profile.Addresses,
+                restaurant_id = restaurantId
+            });
         }
 
         /// <summary>
