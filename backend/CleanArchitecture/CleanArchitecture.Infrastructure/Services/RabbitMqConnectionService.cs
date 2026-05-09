@@ -75,6 +75,7 @@ namespace CleanArchitecture.Infrastructure.Services
         /// paylaşılan IChannel eş zamanlı BasicPublishAsync çağrılarına karşı güvenli değildir.
         /// </summary>
         public async Task PublishAsync(
+            string exchange,
             string routingKey,
             BasicProperties properties,
             byte[] body)
@@ -84,7 +85,7 @@ namespace CleanArchitecture.Infrastructure.Services
             {
                 var channel = await GetChannelAsync();
                 await channel.BasicPublishAsync(
-                    exchange: ExchangeName,
+                    exchange: exchange,
                     routingKey: routingKey,
                     mandatory: false,
                     basicProperties: properties,

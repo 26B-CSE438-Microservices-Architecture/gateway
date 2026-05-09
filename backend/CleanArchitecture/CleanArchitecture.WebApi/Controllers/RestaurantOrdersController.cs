@@ -142,7 +142,7 @@ namespace CleanArchitecture.WebApi.Controllers
             };
 
             // Thread-safe publish — paylaşılan channel üzerinde race condition’u önler
-            await _rabbitMq.PublishAsync(routingKey, properties, body);
+            await _rabbitMq.PublishAsync(RabbitMqConnectionService.ExchangeName, routingKey, properties, body);
 
             Serilog.Log.Information(
                 "[RestaurantOrders] 📤 Komut kuyrukta yayınlandı: {RoutingKey} | CommandId={CommandId}",

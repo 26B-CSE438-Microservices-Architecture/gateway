@@ -117,6 +117,27 @@ namespace CleanArchitecture.Infrastructure.Services
                         exchange: RabbitMqConnectionService.ExchangeName,
                         routingKey: "saga.command.*");
 
+                    // MassTransit Event Bindings (Fanout Exchanges)
+                    await channel.ExchangeDeclareAsync(
+                        exchange: "RestaurantService.API.IntegrationEvents:OrderRejectedEvent",
+                        type: ExchangeType.Fanout,
+                        durable: true,
+                        autoDelete: false);
+                    await channel.QueueBindAsync(
+                        queue: SagaCommandQueue,
+                        exchange: "RestaurantService.API.IntegrationEvents:OrderRejectedEvent",
+                        routingKey: "");
+
+                    await channel.ExchangeDeclareAsync(
+                        exchange: "RestaurantService.API.IntegrationEvents:OrderApprovedEvent",
+                        type: ExchangeType.Fanout,
+                        durable: true,
+                        autoDelete: false);
+                    await channel.QueueBindAsync(
+                        queue: SagaCommandQueue,
+                        exchange: "RestaurantService.API.IntegrationEvents:OrderApprovedEvent",
+                        routingKey: "");
+
                     _logger.LogInformation("[SagaWorker] ✓ Kuyruk hazır: {Queue}", SagaCommandQueue);
                     break;
                 }
@@ -145,7 +166,21 @@ namespace CleanArchitecture.Infrastructure.Services
 
                 try
                 {
-                    await ProcessCommandAsync(routingKey, body);
+                    int maxRetries = 3;
+                    for (int i = 0; i < maxRetries; i++)
+                    {
+                        try
+                        {
+                            await ProcessCommandAsync(routingKey, body);
+                            break; // success
+                        }
+                        catch (Exception ex)
+                        {
+                            if (i == maxRetries - 1) throw; // throw on last attempt
+                            _logger.LogWarning(ex, "[SagaWorker] Komut işleme hatası (Deneme {Attempt}/{MaxRetries}), tekrar deneniyor...", i + 1, maxRetries);
+                            await Task.Delay(2000 * (i + 1));
+                        }
+                    }
 
                     // Başarılı — mesajı onayla
                     await channel.BasicAckAsync(ea.DeliveryTag, multiple: false);
@@ -154,7 +189,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "[SagaWorker] ✗ Komut işlenirken hata: {RoutingKey}", routingKey);
+                    _logger.LogError(ex, "[SagaWorker] ✗ Komut işlenirken hata (Tüm denemeler başarısız): {RoutingKey}", routingKey);
 
                     // BasicNack ile reddet — requeue:false = Dead Letter Queue'ya düşer
                     // Kompanasyon zaten ProcessCommandAsync içinde yapılmıştır;
@@ -181,10 +216,50 @@ namespace CleanArchitecture.Infrastructure.Services
         /// </summary>
         private async Task ProcessCommandAsync(string routingKey, string messageBody)
         {
-            var command = JsonSerializer.Deserialize<SagaCommand>(messageBody, _jsonOpts);
-            if (command == null)
+            // Önce MassTransit mesajı (Fanout) olup olmadığını kontrol et
+            try
             {
-                _logger.LogWarning("[SagaWorker] Komut deserialize edilemedi.");
+                using var doc = JsonDocument.Parse(messageBody);
+                if (doc.RootElement.TryGetProperty("messageType", out var msgTypeArray) && msgTypeArray.GetArrayLength() > 0)
+                {
+                    var msgType = msgTypeArray[0].GetString();
+                    if (msgType != null)
+                    {
+                        if (msgType.Contains("OrderRejectedEvent"))
+                        {
+                            var msg = doc.RootElement.GetProperty("message");
+                            var orderId = msg.GetProperty("orderId").GetString();
+                            var reason = msg.TryGetProperty("reason", out var r) ? r.GetString() : "rejected_by_restaurant";
+                            
+                            using var scopeMT = _scopeFactory.CreateScope();
+                            var orchMT = scopeMT.ServiceProvider.GetRequiredService<IOrderSagaOrchestrator>();
+                            _logger.LogInformation("[SagaWorker] ❌ Restoran reddi işleniyor (MassTransit Event). OrderId={OrderId}", orderId);
+                            await orchMT.HandleRestaurantRejectAsync(orderId, null, reason);
+                            return;
+                        }
+                        else if (msgType.Contains("OrderApprovedEvent"))
+                        {
+                            var msg = doc.RootElement.GetProperty("message");
+                            var orderId = msg.GetProperty("orderId").GetString();
+                            
+                            using var scopeMT = _scopeFactory.CreateScope();
+                            var orchMT = scopeMT.ServiceProvider.GetRequiredService<IOrderSagaOrchestrator>();
+                            _logger.LogInformation("[SagaWorker] ✅ Restoran onaylı işleniyor (MassTransit Event). OrderId={OrderId}", orderId);
+                            await orchMT.HandleRestaurantConfirmAsync(orderId, null);
+                            return;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // JsonDocument parse hatası veya MassTransit formatında değil, normal işleyişe devam et.
+            }
+
+            var command = JsonSerializer.Deserialize<SagaCommand>(messageBody, _jsonOpts);
+            if (command == null || string.IsNullOrEmpty(command.CommandType))
+            {
+                _logger.LogWarning("[SagaWorker] Komut deserialize edilemedi veya CommandType boş.");
                 return;
             }
 
