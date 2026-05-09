@@ -1,6 +1,7 @@
 using CleanArchitecture.Core.DTOs.Vendor;
 using CleanArchitecture.Core.DTOs.Review;
 using CleanArchitecture.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 using System.Security.Claims;
@@ -65,6 +66,7 @@ namespace CleanArchitecture.WebApi.Controllers
         /// <summary>
         /// Registers a new restaurant in the system.
         /// </summary>
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPost]
         public async Task<IActionResult> CreateVendor([FromBody] CreateVendorDto request)
         {
@@ -81,6 +83,7 @@ namespace CleanArchitecture.WebApi.Controllers
         /// <summary>
         /// Updates the core profile details of a restaurant.
         /// </summary>
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPut("{vendor_id}")]
         public async Task<IActionResult> UpdateVendor(string vendor_id, [FromBody] UpdateVendorDto request)
         {
@@ -90,18 +93,21 @@ namespace CleanArchitecture.WebApi.Controllers
         /// <summary>
         /// Updates the operational status (Active/Inactive) of a restaurant.
         /// </summary>
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPatch("{vendor_id}/status")]
         public async Task<IActionResult> UpdateVendorStatus(string vendor_id, [FromBody] UpdateStatusDto request)
         {
             return Ok(await _vendorService.UpdateVendorStatusAsync(vendor_id, request));
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpDelete("{vendor_id}")]
         public async Task<IActionResult> DeleteVendor(string vendor_id)
         {
             return Ok(await _vendorService.DeleteVendorAsync(vendor_id));
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPost("{vendor_id}/categories")]
         public async Task<IActionResult> CreateCategory(string vendor_id, [FromBody] CreateCategoryDto request)
         {
@@ -109,18 +115,21 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(new { id });
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPut("/api/v1/categories/{id}")]
         public async Task<IActionResult> UpdateCategory(string id, [FromBody] UpdateCategoryDto request)
         {
             return Ok(await _vendorService.UpdateCategoryAsync(id, request));
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpDelete("/api/v1/categories/{id}")]
         public async Task<IActionResult> DeleteCategory(string id)
         {
             return Ok(await _vendorService.DeleteCategoryAsync(id));
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPost("/api/v1/categories/{categoryId}/products")]
         public async Task<IActionResult> CreateProduct(string categoryId, [FromBody] CreateProductDto request)
         {
@@ -128,18 +137,21 @@ namespace CleanArchitecture.WebApi.Controllers
             return Ok(new { id });
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPut("/api/v1/products/{id}")]
         public async Task<IActionResult> UpdateProduct(string id, [FromBody] UpdateProductDto request)
         {
             return Ok(await _vendorService.UpdateProductAsync(id, request));
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpPatch("/api/v1/products/{id}/stock")]
         public async Task<IActionResult> UpdateProductStock(string id, [FromBody] UpdateStockDto request)
         {
             return Ok(await _vendorService.UpdateProductStockAsync(id, request));
         }
 
+        [Authorize(Roles = "Admin,RestaurantOwner,restaurant_owner")]
         [HttpDelete("/api/v1/products/{id}")]
         public async Task<IActionResult> DeleteProduct(string id)
         {
