@@ -108,7 +108,7 @@ namespace CleanArchitecture.Infrastructure.Services
             {
                 SagaId    = sagaId,
                 UserId    = userId,
-                Status    = nameof(SagaStatus.OrderCreated),
+                Status    = nameof(SagaStatus.NotStarted),
                 StartedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 Steps     = InitializeSteps()
