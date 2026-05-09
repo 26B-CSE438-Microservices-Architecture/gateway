@@ -251,7 +251,7 @@ namespace CleanArchitecture.Infrastructure.Services
                         var resObj = await response.Content.ReadFromJsonAsync<JsonNode>();
                         if (resObj != null && resObj["id"] != null)
                         {
-                            claimsList.Add(new Claim("restaurant_id", resObj["id"].ToString()));
+                            claimsList.Add(new Claim("restaurant_id", resObj["id"].GetValue<string>()));
                         }
                     }
                     else
