@@ -31,25 +31,31 @@ namespace CleanArchitecture.WebApi.Controllers
         }
 
         /// <summary>
-        /// Confirms a held order, triggering the payment capture process.
+        /// Confirms a held order, triggering the payment capture process via SAGA.
         /// </summary>
         [HttpPatch("{id}/confirm")]
         public async Task<IActionResult> ConfirmOrder(string id)
         {
             var restaurantId = User.FindFirstValue("restaurant_id");
             if (string.IsNullOrEmpty(restaurantId)) return BadRequest("User is not associated with any restaurant.");
-            return Ok(await _orderService.ConfirmOrderAsync(restaurantId, id));
+            
+            var sagaService = HttpContext.RequestServices.GetService(typeof(IOrderSagaOrchestrator)) as IOrderSagaOrchestrator;
+            var result = await sagaService.HandleRestaurantConfirmAsync(id, restaurantId);
+            return Ok(new { message = "Order confirmed via SAGA", sagaStatus = result.Status });
         }
 
         /// <summary>
-        /// Rejects a held order, triggering a payment hold release.
+        /// Rejects a held order, triggering a payment hold release via SAGA.
         /// </summary>
         [HttpPatch("{id}/reject")]
         public async Task<IActionResult> RejectOrder(string id)
         {
             var restaurantId = User.FindFirstValue("restaurant_id");
             if (string.IsNullOrEmpty(restaurantId)) return BadRequest("User is not associated with any restaurant.");
-            return Ok(await _orderService.RejectOrderAsync(restaurantId, id));
+            
+            var sagaService = HttpContext.RequestServices.GetService(typeof(IOrderSagaOrchestrator)) as IOrderSagaOrchestrator;
+            var result = await sagaService.HandleRestaurantRejectAsync(id, restaurantId, "restaurant_rejected");
+            return Ok(new { message = "Order rejected via SAGA", sagaStatus = result.Status });
         }
 
         /// <summary>
