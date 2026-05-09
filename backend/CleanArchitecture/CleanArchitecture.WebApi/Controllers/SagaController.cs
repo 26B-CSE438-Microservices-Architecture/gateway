@@ -1,51 +1,76 @@
 using CleanArchitecture.Core.DTOs.Saga;
 using CleanArchitecture.Core.Interfaces;
+using CleanArchitecture.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using RabbitMQ.Client;
 
 namespace CleanArchitecture.WebApi.Controllers
 {
     /// <summary>
-    /// Order SAGA Orchestrator Controller
+    /// Asenkron Order SAGA Orchestrator Controller
     ///
-    /// Bu controller, sipariş SAGA'sının tüm yaşam döngüsünü yönetir.
-    /// Klasik proxy endpoint'lerinin aksine, her istek birden fazla
-    /// mikroservisi koordineli olarak çağırır ve hata durumunda
-    /// compensating transaction'lar başlatır.
+    /// Bu controller, SAGA komutlarını RabbitMQ kuyruğuna yayınlar ve
+    /// hemen 202 Accepted döner. Komutlar arka planda SagaBackgroundService
+    /// tarafından tüketilir ve SAGA adımları asenkron olarak yürütülür.
     ///
-    /// SAGA Akışı:
-    ///   POST /saga/orders/start       → Sipariş + Ödeme başlat
-    ///   POST /saga/orders/{id}/payment-callback/{paymentId} → iyzico callback
-    ///   POST /saga/orders/{id}/confirm → Restoran onayı + Capture
-    ///   POST /saga/orders/{id}/reject  → Restoran reddi + Void
-    ///   POST /saga/orders/{id}/cancel  → Müşteri iptali + Compensate
-    ///   GET  /saga/orders/{id}         → SAGA durumunu sorgula
+    /// Asenkron Akış:
+    ///   1. Client → POST /saga/orders/start → 202 Accepted (sagaId döner)
+    ///   2. BackgroundService komutu kuyruktan alır → SAGA adımlarını yürütür
+    ///   3. Client → GET /saga/orders/{id} ile durumu sorgular (polling)
+    ///
+    /// SAGA Komutları (RabbitMQ routing keys):
+    ///   saga.command.start              → Sipariş + Ödeme başlat
+    ///   saga.command.payment-callback   → iyzico callback işle
+    ///   saga.command.confirm            → Restoran onayı + Capture
+    ///   saga.command.reject             → Restoran reddi + Void
+    ///   saga.command.cancel             → Müşteri iptali + Compensate
     /// </summary>
     [Route("api/v1/saga/orders")]
     [ApiController]
     public class SagaController : ControllerBase
     {
         private readonly IOrderSagaOrchestrator _orchestrator;
+        private readonly RabbitMqConnectionService _rabbitMq;
 
-        public SagaController(IOrderSagaOrchestrator orchestrator)
+        private static readonly JsonSerializerOptions _jsonOpts = new()
         {
-            _orchestrator = orchestrator;
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        public SagaController(
+            IOrderSagaOrchestrator orchestrator,
+            RabbitMqConnectionService rabbitMq)
+        {
+            _orchestrator   = orchestrator;
+            _rabbitMq       = rabbitMq;
         }
 
-        // ─── ADIM 1+2: Sipariş Başlat ─────────────────────────────────────────
+        /// <summary>
+        /// Mevcut HTTP isteğindeki Authorization header'ini döndürür.
+        /// BackgroundService'de HttpContext olmadığı için bu değeri
+        /// SagaCommand üzerinden taşıyoruz.
+        /// </summary>
+        private string GetAuthToken() => Request.Headers["Authorization"].ToString();
+
+        // ─── ADIM 1+2: Sipariş Başlat (ASENKRON) ──────────────────────────────
 
         /// <summary>
-        /// Yeni bir Order SAGA başlatır.
+        /// Yeni bir Order SAGA başlatır (ASENKRON).
         ///
-        /// Bu endpoint şunları sırayla yapar:
-        /// 1. Order Service'e checkout isteği gönderir (sipariş oluşturur)
-        /// 2. Payment Service'e ödeme başlatma isteği gönderir (checkout form hazırlar)
+        /// Bu endpoint:
+        /// 1. SAGA state'i oluşturur (status: NotStarted)
+        /// 2. RabbitMQ kuyruğuna "saga.command.start" komutu yayınlar
+        /// 3. Hemen 202 Accepted döner
         ///
-        /// Hata durumunda: Oluşan sipariş otomatik iptal edilir.
-        ///
-        /// Response: SAGA state + iyzico checkout form içeriği
+        /// SAGA adımları arka planda SagaBackgroundService tarafından yürütülür.
+        /// Client, GET /saga/orders/{orderId} ile durumu sorgulayabilir.
         /// </summary>
         [Authorize]
         [HttpPost("start")]
@@ -59,25 +84,36 @@ namespace CleanArchitecture.WebApi.Controllers
             if (string.IsNullOrEmpty(idempotencyKey))
                 idempotencyKey = System.Guid.NewGuid().ToString();
 
-            var saga = await _orchestrator.StartCheckoutSagaAsync(userId, request, idempotencyKey);
+            var sagaId = System.Guid.NewGuid().ToString();
 
-            if (saga.Status == nameof(SagaStatus.Failed) || saga.Status == nameof(SagaStatus.Compensated))
-                return UnprocessableEntity(saga);
+            // RabbitMQ kuyruğuna SAGA başlatma komutu yayınla
+            var command = new SagaCommand
+            {
+                CommandId      = sagaId,
+                CommandType    = SagaBackgroundService.CMD_START,
+                UserId         = userId,
+                IdempotencyKey = idempotencyKey,
+                AuthToken      = GetAuthToken(),
+                Payload        = JsonSerializer.SerializeToElement(request, _jsonOpts)
+            };
 
-            return Ok(saga);
+            await PublishCommandAsync(SagaBackgroundService.CMD_START, command);
+
+            // 202 Accepted — "İsteğin alındı, arka planda işlenecek"
+            return Accepted(new
+            {
+                sagaId,
+                status = "QUEUED",
+                message = "SAGA başlatma komutu kuyruğa eklendi. Durumu sorgulamak için GET /saga/orders/{orderId} kullanın.",
+                pollingUrl = $"/api/v1/saga/orders/{sagaId}"
+            });
         }
 
-        // ─── ADIM 3: Ödeme Callback ────────────────────────────────────────────
+        // ─── ADIM 3: Ödeme Callback (ASENKRON) ─────────────────────────────────
 
         /// <summary>
-        /// iyzico ödeme formundan dönen callback'i işler.
-        ///
-        /// Bu endpoint şunları yapar:
-        /// 1. Payment Service'e token ile checkout form sonucunu sorgular
-        /// 2. Başarıda Order Service'e HOLD_CONFIRMED bildirir
-        /// 3. Başarısızlıkta siparişi iptal eder (HOLD_FAILED + order cancel)
-        ///
-        /// NOT: Bu endpoint Auth gerektirmez — iyzico'dan gelen redirect.
+        /// iyzico ödeme formundan dönen callback'i asenkron işler.
+        /// Komutu RabbitMQ kuyruğuna yayınlar, 202 Accepted döner.
         /// </summary>
         [HttpPost("{orderId}/payment-callback/{paymentId}")]
         public async Task<IActionResult> PaymentCallback(
@@ -85,26 +121,33 @@ namespace CleanArchitecture.WebApi.Controllers
             string paymentId,
             [FromBody] SagaPaymentCallbackRequest request)
         {
-            var saga = await _orchestrator.HandlePaymentCallbackAsync(orderId, paymentId, request.Token);
+            var command = new SagaCommand
+            {
+                CommandType = SagaBackgroundService.CMD_PAYMENT_CALLBACK,
+                OrderId     = orderId,
+                AuthToken   = GetAuthToken(),
+                Payload     = JsonSerializer.SerializeToElement(new PaymentCallbackData
+                {
+                    PaymentId = paymentId,
+                    Token     = request.Token
+                }, _jsonOpts)
+            };
 
-            if (saga == null) return NotFound(new { error = "SAGA_NOT_FOUND", message = $"No SAGA found for orderId={orderId}" });
+            await PublishCommandAsync(SagaBackgroundService.CMD_PAYMENT_CALLBACK, command);
 
-            if (saga.Status == nameof(SagaStatus.PaymentAuthorized))
-                return Ok(saga);
-
-            return UnprocessableEntity(saga);
+            return Accepted(new
+            {
+                orderId,
+                status = "QUEUED",
+                message = "Payment callback komutu kuyruğa eklendi."
+            });
         }
 
-        // ─── ADIM 4+5: Restoran Onayı ─────────────────────────────────────────
+        // ─── ADIM 4+5: Restoran Onayı (ASENKRON) ──────────────────────────────
 
         /// <summary>
-        /// Restoran siparişi onaylar — Capture akışını tetikler.
-        ///
-        /// Bu endpoint şunları sırayla yapar:
-        /// 1. Order Service'e confirm gönderir
-        /// 2. Payment Service'e capture gönderir (para çekilir)
-        ///
-        /// Hata durumunda: Payment void edilir, sipariş iptal edilir.
+        /// Restoran siparişi onaylar — Komut kuyruğa eklenir, 202 döner.
+        /// Arka planda: Order confirm + Payment capture yürütülür.
         /// </summary>
         [Authorize(Roles = "RestaurantOwner,restaurant_owner")]
         [HttpPost("{orderId}/confirm")]
@@ -114,22 +157,32 @@ namespace CleanArchitecture.WebApi.Controllers
             if (string.IsNullOrEmpty(restaurantId))
                 return BadRequest(new { error = "RESTAURANT_NOT_ASSOCIATED", message = "User is not associated with any restaurant." });
 
-            var saga = await _orchestrator.HandleRestaurantConfirmAsync(orderId, restaurantId);
+            var command = new SagaCommand
+            {
+                CommandType = SagaBackgroundService.CMD_CONFIRM,
+                OrderId     = orderId,
+                AuthToken   = GetAuthToken(),
+                Payload     = JsonSerializer.SerializeToElement(new RestaurantActionData
+                {
+                    RestaurantId = restaurantId
+                }, _jsonOpts)
+            };
 
-            if (saga.Status == nameof(SagaStatus.PaymentCaptured))
-                return Ok(saga);
+            await PublishCommandAsync(SagaBackgroundService.CMD_CONFIRM, command);
 
-            return UnprocessableEntity(saga);
+            return Accepted(new
+            {
+                orderId,
+                status = "QUEUED",
+                message = "Restoran onay komutu kuyruğa eklendi."
+            });
         }
 
-        // ─── Restoran Reddi ────────────────────────────────────────────────────
+        // ─── Restoran Reddi (ASENKRON) ─────────────────────────────────────────
 
         /// <summary>
-        /// Restoran siparişi reddeder — Hold release (void) başlatır.
-        ///
-        /// Bu endpoint şunları yapar:
-        /// 1. Order Service'e reject gönderir
-        /// 2. Payment Service'e void gönderir (para serbest bırakılır)
+        /// Restoran siparişi reddeder — Komut kuyruğa eklenir, 202 döner.
+        /// Arka planda: void + order cancel yürütülür.
         /// </summary>
         [Authorize(Roles = "RestaurantOwner,restaurant_owner")]
         [HttpPost("{orderId}/reject")]
@@ -141,21 +194,33 @@ namespace CleanArchitecture.WebApi.Controllers
             if (string.IsNullOrEmpty(restaurantId))
                 return BadRequest(new { error = "RESTAURANT_NOT_ASSOCIATED", message = "User is not associated with any restaurant." });
 
-            var saga = await _orchestrator.HandleRestaurantRejectAsync(orderId, restaurantId, request?.Reason ?? "restaurant_rejected");
+            var command = new SagaCommand
+            {
+                CommandType = SagaBackgroundService.CMD_REJECT,
+                OrderId     = orderId,
+                AuthToken   = GetAuthToken(),
+                Payload     = JsonSerializer.SerializeToElement(new RestaurantActionData
+                {
+                    RestaurantId = restaurantId,
+                    Reason       = request?.Reason ?? "restaurant_rejected"
+                }, _jsonOpts)
+            };
 
-            return Ok(saga);
+            await PublishCommandAsync(SagaBackgroundService.CMD_REJECT, command);
+
+            return Accepted(new
+            {
+                orderId,
+                status = "QUEUED",
+                message = "Restoran red komutu kuyruğa eklendi."
+            });
         }
 
-        // ─── Müşteri İptali ────────────────────────────────────────────────────
+        // ─── Müşteri İptali (ASENKRON) ─────────────────────────────────────────
 
         /// <summary>
-        /// Müşteri siparişi iptal eder — Compensating transaction başlatır.
-        ///
-        /// Bu endpoint şunları yapar:
-        /// 1. Ödeme durumuna göre void veya refund başlatır
-        /// 2. Order Service'e cancel gönderir
-        ///
-        /// Sipariş hangi aşamada olursa olsun doğru kompanasyon çalışır.
+        /// Müşteri siparişi iptal eder — Komut kuyruğa eklenir, 202 döner.
+        /// Arka planda: kompanasyon (void/refund + cancel) yürütülür.
         /// </summary>
         [Authorize]
         [HttpPost("{orderId}/cancel")]
@@ -164,17 +229,29 @@ namespace CleanArchitecture.WebApi.Controllers
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-            var saga = await _orchestrator.CancelSagaAsync(orderId, userId);
-            return Ok(saga);
+            var command = new SagaCommand
+            {
+                CommandType = SagaBackgroundService.CMD_CANCEL,
+                OrderId     = orderId,
+                UserId      = userId,
+                AuthToken   = GetAuthToken()
+            };
+
+            await PublishCommandAsync(SagaBackgroundService.CMD_CANCEL, command);
+
+            return Accepted(new
+            {
+                orderId,
+                status = "QUEUED",
+                message = "İptal komutu kuyruğa eklendi."
+            });
         }
 
-        // ─── SAGA Durum Sorgulama ──────────────────────────────────────────────
+        // ─── SAGA Durum Sorgulama (SENKRON — polling endpoint) ─────────────────
 
         /// <summary>
-        /// Bir SAGA'nın tüm adımlarının durumunu döndürür.
-        ///
-        /// Her adımın başarı/başarısızlık durumu, kompanasyon işlemleri
-        /// ve zaman damgaları dahil tüm bilgiler döner.
+        /// Bir SAGA'nın tüm adımlarının durumunu döndürür (polling endpoint).
+        /// Client bu endpoint'i periyodik olarak çağırarak SAGA'nın ilerleyişini takip eder.
         /// </summary>
         [Authorize]
         [HttpGet("{orderId}")]
@@ -182,9 +259,49 @@ namespace CleanArchitecture.WebApi.Controllers
         {
             var saga = await _orchestrator.GetSagaStateAsync(orderId);
             if (saga == null)
-                return NotFound(new { error = "SAGA_NOT_FOUND", message = $"No SAGA found for orderId={orderId}" });
+                return NotFound(new { error = "SAGA_NOT_FOUND", message = $"No SAGA found for orderId={orderId}. SAGA may still be processing." });
 
             return Ok(saga);
+        }
+
+        // ─── Yardımcı: RabbitMQ'ya komut yayınla ──────────────────────────────
+
+        private async Task PublishCommandAsync(string routingKey, SagaCommand command)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(command, _jsonOpts);
+                var body = Encoding.UTF8.GetBytes(json);
+
+                var channel = await _rabbitMq.GetChannelAsync();
+
+                var properties = new BasicProperties
+                {
+                    ContentType   = "application/json",
+                    DeliveryMode  = DeliveryModes.Persistent,
+                    MessageId     = command.CommandId,
+                    Timestamp     = new AmqpTimestamp(System.DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
+                    Type          = routingKey
+                };
+
+                await channel.BasicPublishAsync(
+                    exchange: RabbitMqConnectionService.ExchangeName,
+                    routingKey: routingKey,
+                    mandatory: false,
+                    basicProperties: properties,
+                    body: body);
+
+                Serilog.Log.Information(
+                    "[SagaController] 📤 Komut kuyruğa yayınlandı: {RoutingKey} | CommandId={CommandId}",
+                    routingKey, command.CommandId);
+            }
+            catch (System.Exception ex)
+            {
+                Serilog.Log.Error(ex,
+                    "[SagaController] ✗ Komut kuyruğa yayınlanamadı: {RoutingKey}. Hata: {Error}",
+                    routingKey, ex.Message);
+                throw; // Controller'da hata olursa 500 dönsün
+            }
         }
     }
 

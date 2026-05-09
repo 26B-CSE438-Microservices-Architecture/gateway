@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using CleanArchitecture.WebApi.Extensions;
 using CleanArchitecture.WebApi.Grpc;
 using CleanArchitecture.WebApi.Middlewares;
+using CleanArchitecture.Infrastructure.Services;
 using CleanArchitecture.WebApi.Services;
 using Yarp.ReverseProxy.Transforms;
 using Microsoft.AspNetCore.Builder;
@@ -160,6 +161,26 @@ app.MapGet("/", () => "Navigate to /swagger to see the API documentation.\nNavig
 app.MapControllers();
 app.MapGrpcService<AuthGrpcService>();
 app.MapReverseProxy();
+
+// RabbitMQ bağlantısını uygulama başlarken başlat (eager initialization)
+try
+{
+    var rabbitMq = app.Services.GetRequiredService<RabbitMqConnectionService>();
+    _ = rabbitMq.GetChannelAsync().GetAwaiter().GetResult();
+    Log.Information("RabbitMQ bağlantısı başarıyla kuruldu.");
+}
+catch (Exception ex)
+{
+    Log.Warning(ex, "RabbitMQ bağlantısı kurulamadı — uygulama HTTP modunda devam edecek.");
+}
+
+// Graceful shutdown: RabbitMQ bağlantısını kapat
+var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+lifetime.ApplicationStopping.Register(() =>
+{
+    Log.Information("Uygulama kapanıyor — RabbitMQ bağlantısı kapatılıyor...");
+    app.Services.GetRequiredService<RabbitMqConnectionService>().Dispose();
+});
 
 
 

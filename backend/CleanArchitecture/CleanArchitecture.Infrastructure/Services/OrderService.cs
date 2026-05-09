@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ namespace CleanArchitecture.Infrastructure.Services
     {
         private readonly HttpClient _httpClient;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ISagaContextAccessor _sagaContextAccessor;
         private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
 
         private static readonly JsonSerializerOptions _jsonOpts = new JsonSerializerOptions
@@ -25,10 +27,15 @@ namespace CleanArchitecture.Infrastructure.Services
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        public OrderService(IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor, Microsoft.Extensions.Configuration.IConfiguration configuration)
+        public OrderService(
+            IHttpClientFactory httpClientFactory,
+            IHttpContextAccessor httpContextAccessor,
+            ISagaContextAccessor sagaContextAccessor,
+            Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
             _httpClient = httpClientFactory.CreateClient("order");
             _httpContextAccessor = httpContextAccessor;
+            _sagaContextAccessor = sagaContextAccessor;
             _configuration = configuration;
         }
 
@@ -46,15 +53,20 @@ namespace CleanArchitecture.Infrastructure.Services
             var ctx = _httpContextAccessor.HttpContext;
             if (ctx != null)
             {
-                // Order Service uses Authorization: Bearer JWT
+                // HTTP pipeline içinden çağrılıyor — header'ları forward et
                 var auth = ctx.Request.Headers["Authorization"].ToString();
                 if (!string.IsNullOrEmpty(auth))
                     req.Headers.TryAddWithoutValidation("Authorization", auth);
 
-                // Forward idempotency key if present
                 var idempotencyKey = ctx.Request.Headers["Idempotency-Key"].ToString();
                 if (!string.IsNullOrEmpty(idempotencyKey))
                     req.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
+            }
+            else if (_sagaContextAccessor.HasContext)
+            {
+                // BackgroundService üzerinden çağrılıyor — SagaContext'ten oku
+                if (!string.IsNullOrEmpty(_sagaContextAccessor.AuthToken))
+                    req.Headers.TryAddWithoutValidation("Authorization", _sagaContextAccessor.AuthToken);
             }
             if (body != null)
                 req.Content = JsonContent.Create(body, options: _jsonOpts);

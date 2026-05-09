@@ -149,7 +149,8 @@
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.CancelOrder(System.String)">
             <summary>
-            Cancels a pending or held order via SAGA Orchestrator.
+            Cancels a pending or held order via asynchronous SAGA Orchestrator.
+            Publishes saga.command.cancel to RabbitMQ and returns 202 Accepted.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.OrdersController.Reorder(System.String)">
@@ -187,6 +188,12 @@
             Get payment details by ID.
             </summary>
         </member>
+        <member name="T:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController">
+            <summary>
+            Restoran sipariş yönetimi controller'ı.
+            Confirm/Reject işlemleri RabbitMQ üzerinden asenkron SAGA olarak çalışır.
+            </summary>
+        </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.GetRestaurantOrders(System.String,System.Int32,System.Int32)">
             <summary>
             Retrieves paginated orders belonging to the restaurant.
@@ -194,12 +201,14 @@
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.ConfirmOrder(System.String)">
             <summary>
-            Confirms a held order, triggering the payment capture process via SAGA.
+            Confirms a held order, triggering the payment capture process via asynchronous SAGA.
+            Publishes saga.command.confirm to RabbitMQ and returns 202 Accepted.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.RejectOrder(System.String)">
             <summary>
-            Rejects a held order, triggering a payment hold release via SAGA.
+            Rejects a held order, triggering a payment hold release via asynchronous SAGA.
+            Publishes saga.command.reject to RabbitMQ and returns 202 Accepted.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.RestaurantOrdersController.UpdateStatus(System.String,CleanArchitecture.Core.DTOs.Order.UpdateOrderStatusRequest)">
@@ -209,85 +218,74 @@
         </member>
         <member name="T:CleanArchitecture.WebApi.Controllers.SagaController">
              <summary>
-             Order SAGA Orchestrator Controller
+             Asenkron Order SAGA Orchestrator Controller
             
-             Bu controller, sipariş SAGA'sının tüm yaşam döngüsünü yönetir.
-             Klasik proxy endpoint'lerinin aksine, her istek birden fazla
-             mikroservisi koordineli olarak çağırır ve hata durumunda
-             compensating transaction'lar başlatır.
+             Bu controller, SAGA komutlarını RabbitMQ kuyruğuna yayınlar ve
+             hemen 202 Accepted döner. Komutlar arka planda SagaBackgroundService
+             tarafından tüketilir ve SAGA adımları asenkron olarak yürütülür.
             
-             SAGA Akışı:
-               POST /saga/orders/start       → Sipariş + Ödeme başlat
-               POST /saga/orders/{id}/payment-callback/{paymentId} → iyzico callback
-               POST /saga/orders/{id}/confirm → Restoran onayı + Capture
-               POST /saga/orders/{id}/reject  → Restoran reddi + Void
-               POST /saga/orders/{id}/cancel  → Müşteri iptali + Compensate
-               GET  /saga/orders/{id}         → SAGA durumunu sorgula
+             Asenkron Akış:
+               1. Client → POST /saga/orders/start → 202 Accepted (sagaId döner)
+               2. BackgroundService komutu kuyruktan alır → SAGA adımlarını yürütür
+               3. Client → GET /saga/orders/{id} ile durumu sorgular (polling)
+            
+             SAGA Komutları (RabbitMQ routing keys):
+               saga.command.start              → Sipariş + Ödeme başlat
+               saga.command.payment-callback   → iyzico callback işle
+               saga.command.confirm            → Restoran onayı + Capture
+               saga.command.reject             → Restoran reddi + Void
+               saga.command.cancel             → Müşteri iptali + Compensate
              </summary>
+        </member>
+        <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.GetAuthToken">
+            <summary>
+            Mevcut HTTP isteğindeki Authorization header'ini döndürür.
+            BackgroundService'de HttpContext olmadığı için bu değeri
+            SagaCommand üzerinden taşıyoruz.
+            </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.StartSaga(CleanArchitecture.Core.DTOs.Saga.StartOrderSagaRequest)">
              <summary>
-             Yeni bir Order SAGA başlatır.
+             Yeni bir Order SAGA başlatır (ASENKRON).
             
-             Bu endpoint şunları sırayla yapar:
-             1. Order Service'e checkout isteği gönderir (sipariş oluşturur)
-             2. Payment Service'e ödeme başlatma isteği gönderir (checkout form hazırlar)
+             Bu endpoint:
+             1. SAGA state'i oluşturur (status: NotStarted)
+             2. RabbitMQ kuyruğuna "saga.command.start" komutu yayınlar
+             3. Hemen 202 Accepted döner
             
-             Hata durumunda: Oluşan sipariş otomatik iptal edilir.
-            
-             Response: SAGA state + iyzico checkout form içeriği
+             SAGA adımları arka planda SagaBackgroundService tarafından yürütülür.
+             Client, GET /saga/orders/{orderId} ile durumu sorgulayabilir.
              </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.PaymentCallback(System.String,System.String,CleanArchitecture.WebApi.Controllers.SagaPaymentCallbackRequest)">
-             <summary>
-             iyzico ödeme formundan dönen callback'i işler.
-            
-             Bu endpoint şunları yapar:
-             1. Payment Service'e token ile checkout form sonucunu sorgular
-             2. Başarıda Order Service'e HOLD_CONFIRMED bildirir
-             3. Başarısızlıkta siparişi iptal eder (HOLD_FAILED + order cancel)
-            
-             NOT: Bu endpoint Auth gerektirmez — iyzico'dan gelen redirect.
-             </summary>
+            <summary>
+            iyzico ödeme formundan dönen callback'i asenkron işler.
+            Komutu RabbitMQ kuyruğuna yayınlar, 202 Accepted döner.
+            </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.ConfirmOrder(System.String)">
-             <summary>
-             Restoran siparişi onaylar — Capture akışını tetikler.
-            
-             Bu endpoint şunları sırayla yapar:
-             1. Order Service'e confirm gönderir
-             2. Payment Service'e capture gönderir (para çekilir)
-            
-             Hata durumunda: Payment void edilir, sipariş iptal edilir.
-             </summary>
+            <summary>
+            Restoran siparişi onaylar — Komut kuyruğa eklenir, 202 döner.
+            Arka planda: Order confirm + Payment capture yürütülür.
+            </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.RejectOrder(System.String,CleanArchitecture.WebApi.Controllers.SagaRejectRequest)">
-             <summary>
-             Restoran siparişi reddeder — Hold release (void) başlatır.
-            
-             Bu endpoint şunları yapar:
-             1. Order Service'e reject gönderir
-             2. Payment Service'e void gönderir (para serbest bırakılır)
-             </summary>
+            <summary>
+            Restoran siparişi reddeder — Komut kuyruğa eklenir, 202 döner.
+            Arka planda: void + order cancel yürütülür.
+            </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.CancelOrder(System.String)">
-             <summary>
-             Müşteri siparişi iptal eder — Compensating transaction başlatır.
-            
-             Bu endpoint şunları yapar:
-             1. Ödeme durumuna göre void veya refund başlatır
-             2. Order Service'e cancel gönderir
-            
-             Sipariş hangi aşamada olursa olsun doğru kompanasyon çalışır.
-             </summary>
+            <summary>
+            Müşteri siparişi iptal eder — Komut kuyruğa eklenir, 202 döner.
+            Arka planda: kompanasyon (void/refund + cancel) yürütülür.
+            </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SagaController.GetSagaState(System.String)">
-             <summary>
-             Bir SAGA'nın tüm adımlarının durumunu döndürür.
-            
-             Her adımın başarı/başarısızlık durumu, kompanasyon işlemleri
-             ve zaman damgaları dahil tüm bilgiler döner.
-             </summary>
+            <summary>
+            Bir SAGA'nın tüm adımlarının durumunu döndürür (polling endpoint).
+            Client bu endpoint'i periyodik olarak çağırarak SAGA'nın ilerleyişini takip eder.
+            </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.SearchController.Search(System.String,System.Nullable{System.Double},System.Nullable{System.Double})">
             <summary>

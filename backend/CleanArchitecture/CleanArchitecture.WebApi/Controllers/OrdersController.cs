@@ -1,9 +1,14 @@
 using CleanArchitecture.Core.DTOs.Order;
 using CleanArchitecture.Core.Interfaces;
+using CleanArchitecture.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using RabbitMQ.Client;
 
 namespace CleanArchitecture.WebApi.Controllers
 {
@@ -12,10 +17,20 @@ namespace CleanArchitecture.WebApi.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
+        private readonly RabbitMqConnectionService _rabbitMq;
 
-        public OrdersController(IOrderService orderService)
+        private static readonly JsonSerializerOptions _jsonOpts = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        public OrdersController(
+            IOrderService orderService,
+            RabbitMqConnectionService rabbitMq)
         {
             _orderService = orderService;
+            _rabbitMq = rabbitMq;
         }
 
         /// <summary>
@@ -43,7 +58,8 @@ namespace CleanArchitecture.WebApi.Controllers
         }
 
         /// <summary>
-        /// Cancels a pending or held order via SAGA Orchestrator.
+        /// Cancels a pending or held order via asynchronous SAGA Orchestrator.
+        /// Publishes saga.command.cancel to RabbitMQ and returns 202 Accepted.
         /// </summary>
         [Authorize]
         [HttpPost("{id}/cancel")]
@@ -51,11 +67,24 @@ namespace CleanArchitecture.WebApi.Controllers
         {
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
-            
-            var sagaService = HttpContext.RequestServices.GetService(typeof(IOrderSagaOrchestrator)) as IOrderSagaOrchestrator;
-            var result = await sagaService.CancelSagaAsync(id, userId);
-            
-            return Ok(new { message = "Order cancelled via SAGA", sagaStatus = result.Status });
+
+            var command = new SagaCommand
+            {
+                CommandType = SagaBackgroundService.CMD_CANCEL,
+                OrderId     = id,
+                UserId      = userId,
+                AuthToken   = Request.Headers["Authorization"].ToString()
+            };
+
+            await PublishCommandAsync(SagaBackgroundService.CMD_CANCEL, command);
+
+            return Accepted(new
+            {
+                orderId = id,
+                status = "QUEUED",
+                message = "İptal komutu kuyruğa eklendi. Durumu sorgulamak için GET /saga/orders/{orderId} kullanın.",
+                pollingUrl = $"/api/v1/saga/orders/{id}"
+            });
         }
 
         /// <summary>
@@ -80,6 +109,36 @@ namespace CleanArchitecture.WebApi.Controllers
             var userId = User.FindFirstValue("uid");
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
             return Ok(await _orderService.RequestRefundAsync(userId, id));
+        }
+
+        // ─── Yardımcı: RabbitMQ'ya komut yayınla ──────────────────────────────
+
+        private async Task PublishCommandAsync(string routingKey, SagaCommand command)
+        {
+            var json = JsonSerializer.Serialize(command, _jsonOpts);
+            var body = Encoding.UTF8.GetBytes(json);
+
+            var channel = await _rabbitMq.GetChannelAsync();
+
+            var properties = new BasicProperties
+            {
+                ContentType   = "application/json",
+                DeliveryMode  = DeliveryModes.Persistent,
+                MessageId     = command.CommandId,
+                Timestamp     = new AmqpTimestamp(System.DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
+                Type          = routingKey
+            };
+
+            await channel.BasicPublishAsync(
+                exchange: RabbitMqConnectionService.ExchangeName,
+                routingKey: routingKey,
+                mandatory: false,
+                basicProperties: properties,
+                body: body);
+
+            Serilog.Log.Information(
+                "[Orders] 📤 Komut kuyruğa yayınlandı: {RoutingKey} | CommandId={CommandId}",
+                routingKey, command.CommandId);
         }
     }
 }

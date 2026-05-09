@@ -50,6 +50,14 @@ namespace CleanArchitecture.Infrastructure
             services.AddScoped<ISearchService, SearchService>();
             services.AddTransient<IAdminService, AdminService>();
             services.AddScoped<IOrderSagaOrchestrator, OrderSagaOrchestrator>();
+            services.AddScoped<ISagaContextAccessor, SagaContextAccessor>();
+
+            // RabbitMQ — asenkron event yayınlama altyapısı
+            services.AddSingleton<RabbitMqConnectionService>();
+            services.AddSingleton<IEventPublisher, RabbitMqEventPublisher>();
+
+            // Asenkron SAGA worker — RabbitMQ kuyruğundan komutları tüketir
+            services.AddHostedService<SagaBackgroundService>();
             #endregion
             services.Configure<JWTSettings>(configuration.GetSection("JWTSettings"));
             services.AddAuthentication(options =>
