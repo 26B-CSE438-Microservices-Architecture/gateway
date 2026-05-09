@@ -73,7 +73,7 @@ namespace CleanArchitecture.WebApi.Controllers
             var userId = User.FindFirst("uid")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(request.OwnerId) && !string.IsNullOrEmpty(userId))
             {
-                request.OwnerId = userId;
+                request.OwnerId = userId.ToLower();
             }
 
             var id = await _vendorService.CreateVendorAsync(request);
