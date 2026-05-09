@@ -25,8 +25,8 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpGet]
         public async Task<IActionResult> GetRestaurantOrders([FromQuery] string status, [FromQuery] int page = 0, [FromQuery] int size = 20)
         {
-            var restaurantId = User.FindFirstValue("uid");
-            if (string.IsNullOrEmpty(restaurantId)) return Unauthorized();
+            var restaurantId = User.FindFirstValue("restaurant_id");
+            if (string.IsNullOrEmpty(restaurantId)) return BadRequest("User is not associated with any restaurant.");
             return Ok(await _orderService.GetRestaurantOrdersAsync(restaurantId, status, page, size));
         }
 
@@ -36,8 +36,8 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPatch("{id}/confirm")]
         public async Task<IActionResult> ConfirmOrder(string id)
         {
-            var restaurantId = User.FindFirstValue("uid");
-            if (string.IsNullOrEmpty(restaurantId)) return Unauthorized();
+            var restaurantId = User.FindFirstValue("restaurant_id");
+            if (string.IsNullOrEmpty(restaurantId)) return BadRequest("User is not associated with any restaurant.");
             return Ok(await _orderService.ConfirmOrderAsync(restaurantId, id));
         }
 
@@ -47,8 +47,8 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPatch("{id}/reject")]
         public async Task<IActionResult> RejectOrder(string id)
         {
-            var restaurantId = User.FindFirstValue("uid");
-            if (string.IsNullOrEmpty(restaurantId)) return Unauthorized();
+            var restaurantId = User.FindFirstValue("restaurant_id");
+            if (string.IsNullOrEmpty(restaurantId)) return BadRequest("User is not associated with any restaurant.");
             return Ok(await _orderService.RejectOrderAsync(restaurantId, id));
         }
 
@@ -58,8 +58,8 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPatch("{id}/status")]
         public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateOrderStatusRequest request)
         {
-            var restaurantId = User.FindFirstValue("uid");
-            if (string.IsNullOrEmpty(restaurantId)) return Unauthorized();
+            var restaurantId = User.FindFirstValue("restaurant_id");
+            if (string.IsNullOrEmpty(restaurantId)) return BadRequest("User is not associated with any restaurant.");
             return Ok(await _orderService.UpdateOrderStatusAsync(restaurantId, id, request.Status));
         }
     }

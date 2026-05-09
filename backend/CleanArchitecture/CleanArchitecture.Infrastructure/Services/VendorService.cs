@@ -69,6 +69,7 @@ namespace CleanArchitecture.Infrastructure.Services
         private class RsRestaurant
         {
             public string Id { get; set; }
+            public string OwnerId { get; set; }
             public string Name { get; set; }
             public string Description { get; set; }
             public string AddressText { get; set; }
@@ -123,6 +124,7 @@ namespace CleanArchitecture.Infrastructure.Services
             return new VendorDetailDto
             {
                 Id = r.Id,
+                OwnerId = r.OwnerId,
                 Name = r.Name,
                 Kind = "RESTAURANT",
                 Description = r.Description,
@@ -205,6 +207,20 @@ namespace CleanArchitecture.Infrastructure.Services
             }
         }
 
+        public async Task<VendorDetailDto> GetVendorByOwnerIdAsync(string ownerId)
+        {
+            var req = BuildRequest(HttpMethod.Get, $"api/v1/restaurants/owner/{ownerId}");
+            try
+            {
+                var restaurant = await SendAsync<RsRestaurant>(req);
+                return MapDetail(restaurant);
+            }
+            catch (NotFoundException)
+            {
+                return null;
+            }
+        }
+
         public async Task<PagedVendorsResponse> GetNearbyVendorsAsync(double lat, double lng, double radiusKm)
         {
             var req = BuildRequest(HttpMethod.Get, $"api/v1/restaurants/nearby?lat={lat}&lng={lng}&radius={radiusKm}");
@@ -243,6 +259,7 @@ namespace CleanArchitecture.Infrastructure.Services
         {
             var body = new
             {
+                ownerId = request.OwnerId,
                 name = request.Name,
                 description = request.Description,
                 addressText = request.AddressText,
