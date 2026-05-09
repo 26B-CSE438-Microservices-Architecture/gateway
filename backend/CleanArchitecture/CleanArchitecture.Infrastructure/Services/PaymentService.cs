@@ -19,6 +19,7 @@ namespace CleanArchitecture.Infrastructure.Services
 
         private static readonly JsonSerializerOptions _jsonOpts = new JsonSerializerOptions
         {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,   
             PropertyNameCaseInsensitive = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
@@ -129,8 +130,16 @@ namespace CleanArchitecture.Infrastructure.Services
             // Callback comes from browser redirect — no auth header needed
             var req = new HttpRequestMessage(HttpMethod.Post, $"payments/{paymentId}/checkout-form/callback");
             req.Content = JsonContent.Create(body, options: _jsonOpts);
+
             var response = await _httpClient.SendAsync(req);
-            response.EnsureSuccessStatusCode();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                throw new ApiException("PAYMENT_CALLBACK_FAILED",
+                    $"Payment callback processing failed (HTTP {(int)response.StatusCode}): {errorBody}");
+            }
+
             var result = await response.Content.ReadFromJsonAsync<PaymentCallbackResponse>(_jsonOpts);
             return result?.Payment;
         }

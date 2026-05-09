@@ -132,8 +132,6 @@ namespace CleanArchitecture.WebApi.Controllers
             var json = JsonSerializer.Serialize(command, _jsonOpts);
             var body = Encoding.UTF8.GetBytes(json);
 
-            var channel = await _rabbitMq.GetChannelAsync();
-
             var properties = new BasicProperties
             {
                 ContentType   = "application/json",
@@ -143,15 +141,11 @@ namespace CleanArchitecture.WebApi.Controllers
                 Type          = routingKey
             };
 
-            await channel.BasicPublishAsync(
-                exchange: RabbitMqConnectionService.ExchangeName,
-                routingKey: routingKey,
-                mandatory: false,
-                basicProperties: properties,
-                body: body);
+            // Thread-safe publish — paylaşılan channel üzerinde race condition’u önler
+            await _rabbitMq.PublishAsync(routingKey, properties, body);
 
             Serilog.Log.Information(
-                "[RestaurantOrders] 📤 Komut kuyruğa yayınlandı: {RoutingKey} | CommandId={CommandId}",
+                "[RestaurantOrders] 📤 Komut kuyrukta yayınlandı: {RoutingKey} | CommandId={CommandId}",
                 routingKey, command.CommandId);
         }
     }

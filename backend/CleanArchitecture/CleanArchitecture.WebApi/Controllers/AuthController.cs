@@ -108,7 +108,7 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpGet("confirm-email")]
         public async Task<IActionResult> ConfirmEmailAsync([FromQuery] string userId, [FromQuery] string code)
         {
-            var origin = Request.Headers["origin"].FirstOrDefault() ?? "https://localhost:9001";
+            var origin = Request.Headers["origin"].FirstOrDefault() ?? "https://gw.cse.akdeniz.edu.tr/cse-438";
             return Ok(await _accountService.ConfirmEmailAsync(userId, code));
         }
 
@@ -118,7 +118,7 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest model)
         {
-            var origin = Request.Headers["origin"].FirstOrDefault() ?? "https://localhost:9001";
+            var origin = Request.Headers["origin"].FirstOrDefault() ?? "https://gw.cse.akdeniz.edu.tr/cse-438";
             var result = await _accountService.ForgotPassword(model, origin);
             return Ok(result);
         }

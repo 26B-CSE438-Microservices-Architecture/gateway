@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -80,11 +81,11 @@ namespace CleanArchitecture.Infrastructure.Services
         ///   - Adım 2 başarısız → Order Service'e cancel gönderir
         /// </summary>
         public async Task<SagaState> StartCheckoutSagaAsync(
+            string sagaId,
             string userId,
             StartOrderSagaRequest request,
             string idempotencyKey)
         {
-            var sagaId = Guid.NewGuid().ToString();
             var saga = new SagaState
             {
                 SagaId    = sagaId,
@@ -96,6 +97,9 @@ namespace CleanArchitecture.Infrastructure.Services
             };
 
             _logger.LogInformation("[SAGA:{SagaId}] Checkout SAGA başladı. UserId={UserId}", sagaId, userId);
+
+            // Register early so polling can find it by sagaId
+            _sagaStore[sagaId] = saga;
 
             // ── ADIM 1: Checkout ──────────────────────────────────────────────
             UpdateStep(saga, STEP_CHECKOUT, "InProgress");
@@ -114,6 +118,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.TotalAmount = order.TotalAmount;
                 saga.Currency    = order.Currency ?? "TRY";
 
+                // Now that we have OrderId, store it with OrderId as key as well
                 _sagaStore[saga.OrderId] = saga;
                 UpdateStep(saga, STEP_CHECKOUT, "Success");
                 saga.Status      = nameof(SagaStatus.OrderCreated);
@@ -147,7 +152,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 // Callback URL: ödeme formu tamamlandığında Gateway'e dönecek adres
                 var callbackBase = _configuration["AppSettings:BaseUrl"]
                                 ?? _configuration["ASPNETCORE_URLS"]?.Split(';')[0]
-                                ?? "http://localhost:5000";
+                                ?? "https://gw.cse.akdeniz.edu.tr/cse-438";
                 var callbackUrl = request.CallbackUrl
                     ?? $"{callbackBase}/api/v1/saga/orders/{saga.OrderId}/payment-callback/{{paymentId}}";
 
@@ -353,6 +358,12 @@ namespace CleanArchitecture.Infrastructure.Services
                     // Order Service'e CAPTURE_COMPLETED bildir
                     await _orderService.ProcessPaymentCallbackAsync(orderId, "CAPTURE_COMPLETED");
                 }
+                else
+                {
+                    // PaymentId yoksa (state kaybı / minimal SAGA): capture edilemez, kompanasyon gerekli
+                    _logger.LogWarning("[SAGA:{SagaId}] Adım 5 ✗ PaymentId bulunamadı — capture atlanamaz. Kompanasyon başlıyor.", saga.SagaId);
+                    throw new InvalidOperationException("PaymentId is missing — cannot capture payment.");
+                }
 
                 UpdateStep(saga, STEP_PAYMENT_CAPTURE, "Success");
                 saga.Status      = nameof(SagaStatus.PaymentCaptured);
@@ -482,10 +493,13 @@ namespace CleanArchitecture.Infrastructure.Services
         // DURUM SORGULAMA
         // ═══════════════════════════════════════════════════════════════════════
 
-        public Task<SagaState> GetSagaStateAsync(string orderId)
+        public Task<SagaState> GetSagaStateAsync(string key)
         {
-            _sagaStore.TryGetValue(orderId, out var saga);
-            return Task.FromResult(saga);
+            // Önce orderId olarak ara
+            if (_sagaStore.TryGetValue(key, out var saga)) return Task.FromResult(saga);
+            // Sonra sagaId olarak ara (SAGA başlar başlamaz orderId henüz yoktur)
+            var bySagaId = _sagaStore.Values.FirstOrDefault(s => s.SagaId == key);
+            return Task.FromResult(bySagaId);
         }
 
         // ═══════════════════════════════════════════════════════════════════════
