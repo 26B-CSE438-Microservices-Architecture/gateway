@@ -34,6 +34,7 @@ namespace CleanArchitecture.Infrastructure.Services
         private readonly IDateTimeService _dateTimeService;
         private readonly ApplicationDbContext _dbContext;
         private readonly IUserService _userService;
+        private readonly IVendorService _vendorService;
 
         public AccountService(UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
@@ -42,7 +43,8 @@ namespace CleanArchitecture.Infrastructure.Services
             SignInManager<ApplicationUser> signInManager,
             IEmailService emailService,
             ApplicationDbContext dbContext,
-            IUserService userService)
+            IUserService userService,
+            IVendorService vendorService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -52,6 +54,7 @@ namespace CleanArchitecture.Infrastructure.Services
             this._emailService = emailService;
             _dbContext = dbContext;
             _userService = userService;
+            _vendorService = vendorService;
         }
 
         public async Task<AuthenticationResponse> LoginAsync(AuthenticationRequest request, string ipAddress)
@@ -230,6 +233,15 @@ namespace CleanArchitecture.Infrastructure.Services
             
             // order-service expects a single "role" claim in UPPERCASE_UNDERSCORE format
             claimsList.Add(new Claim("role", mainRole));
+
+            if (mainRole == "RESTAURANT_OWNER")
+            {
+                var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
+                if (restaurant != null)
+                {
+                    claimsList.Add(new Claim("restaurant_id", restaurant.Id));
+                }
+            }
 
             var key = CleanArchitecture.Infrastructure.Helpers.JWTHelper.GetSymmetricSecurityKey(_jwtSettings.Key ?? _jwtSettings.Secret);
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

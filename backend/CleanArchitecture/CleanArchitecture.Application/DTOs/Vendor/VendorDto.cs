@@ -38,6 +38,9 @@ namespace CleanArchitecture.Core.DTOs.Vendor
 
     public class VendorDetailDto : VendorSummaryDto
     {
+        [JsonPropertyName("owner_id")]
+        public string OwnerId { get; set; }
+
         [JsonPropertyName("description")]
         public string Description { get; set; }
 
@@ -59,6 +62,9 @@ namespace CleanArchitecture.Core.DTOs.Vendor
 
     public class CreateVendorDto
     {
+        [JsonPropertyName("owner_id")]
+        public string OwnerId { get; set; }
+
         [JsonPropertyName("name")]
         public string Name { get; set; }
 
