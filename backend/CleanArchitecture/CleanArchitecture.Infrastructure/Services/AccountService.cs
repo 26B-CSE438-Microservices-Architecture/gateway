@@ -21,6 +21,9 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 
 namespace CleanArchitecture.Infrastructure.Services
 {
@@ -35,6 +38,7 @@ namespace CleanArchitecture.Infrastructure.Services
         private readonly ApplicationDbContext _dbContext;
         private readonly IUserService _userService;
         private readonly IVendorService _vendorService;
+        private readonly IHttpClientFactory _httpClientFactory;
 
         public AccountService(UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
@@ -44,7 +48,8 @@ namespace CleanArchitecture.Infrastructure.Services
             IEmailService emailService,
             ApplicationDbContext dbContext,
             IUserService userService,
-            IVendorService vendorService)
+            IVendorService vendorService,
+            IHttpClientFactory httpClientFactory)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -55,6 +60,7 @@ namespace CleanArchitecture.Infrastructure.Services
             _dbContext = dbContext;
             _userService = userService;
             _vendorService = vendorService;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<AuthenticationResponse> LoginAsync(AuthenticationRequest request, string ipAddress)
@@ -236,10 +242,35 @@ namespace CleanArchitecture.Infrastructure.Services
 
             if (mainRole == "RESTAURANT_OWNER")
             {
-                var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
-                if (restaurant != null)
+                try
                 {
-                    claimsList.Add(new Claim("restaurant_id", restaurant.Id));
+                    var client = _httpClientFactory.CreateClient("restaurant");
+                    var response = await client.GetAsync($"internal/restaurants/by-owner/{user.Id}");
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var resObj = await response.Content.ReadFromJsonAsync<JsonNode>();
+                        if (resObj != null && resObj["id"] != null)
+                        {
+                            claimsList.Add(new Claim("restaurant_id", resObj["id"].ToString()));
+                        }
+                    }
+                    else
+                    {
+                        // Fallback
+                        var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
+                        if (restaurant != null)
+                        {
+                            claimsList.Add(new Claim("restaurant_id", restaurant.Id));
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
+                    if (restaurant != null)
+                    {
+                        claimsList.Add(new Claim("restaurant_id", restaurant.Id));
+                    }
                 }
             }
 

@@ -3,6 +3,7 @@ using CleanArchitecture.Core.DTOs.Review;
 using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using System.Security.Claims;
 
 namespace CleanArchitecture.WebApi.Controllers
 {
@@ -67,6 +68,12 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateVendor([FromBody] CreateVendorDto request)
         {
+            var userId = User.FindFirst("uid")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(request.OwnerId) && !string.IsNullOrEmpty(userId))
+            {
+                request.OwnerId = userId;
+            }
+
             var id = await _vendorService.CreateVendorAsync(request);
             return CreatedAtAction(nameof(GetVendor), new { vendor_id = id }, new { id });
         }
