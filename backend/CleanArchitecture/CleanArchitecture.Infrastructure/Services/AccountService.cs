@@ -249,16 +249,31 @@ namespace CleanArchitecture.Infrastructure.Services
                     if (response.IsSuccessStatusCode)
                     {
                         var resObj = await response.Content.ReadFromJsonAsync<JsonNode>();
-                        if (resObj != null && resObj["id"] != null)
+                        var idNode = resObj?["id"] ?? resObj?["Id"];
+                        
+                        if (idNode != null)
                         {
-                            claimsList.Add(new Claim("restaurant_id", resObj["id"].GetValue<string>()));
+                            var idVal = idNode.ToString();
+                            if (!string.IsNullOrWhiteSpace(idVal) && idVal.ToLower() != "null")
+                            {
+                                claimsList.Add(new Claim("restaurant_id", idVal));
+                            }
+                        }
+                        else
+                        {
+                            // Try fallback if id is not found in JSON
+                            var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
+                            if (restaurant != null && !string.IsNullOrWhiteSpace(restaurant.Id) && restaurant.Id.ToLower() != "null")
+                            {
+                                claimsList.Add(new Claim("restaurant_id", restaurant.Id));
+                            }
                         }
                     }
                     else
                     {
                         // Fallback
                         var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
-                        if (restaurant != null)
+                        if (restaurant != null && !string.IsNullOrWhiteSpace(restaurant.Id) && restaurant.Id.ToLower() != "null")
                         {
                             claimsList.Add(new Claim("restaurant_id", restaurant.Id));
                         }
@@ -266,11 +281,15 @@ namespace CleanArchitecture.Infrastructure.Services
                 }
                 catch (Exception)
                 {
-                    var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
-                    if (restaurant != null)
+                    try 
                     {
-                        claimsList.Add(new Claim("restaurant_id", restaurant.Id));
+                        var restaurant = await _vendorService.GetVendorByOwnerIdAsync(user.Id);
+                        if (restaurant != null && !string.IsNullOrWhiteSpace(restaurant.Id) && restaurant.Id.ToLower() != "null")
+                        {
+                            claimsList.Add(new Claim("restaurant_id", restaurant.Id));
+                        }
                     }
+                    catch { /* Swallow to prevent login failure */ }
                 }
             }
 
