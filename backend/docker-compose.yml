@@ -67,6 +67,8 @@ services:
     ports:
       - "5673:5672"
       - "15673:15672"
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq/mnesia
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -76,3 +78,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  rabbitmqdata:

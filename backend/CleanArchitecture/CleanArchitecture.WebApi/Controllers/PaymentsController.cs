@@ -48,8 +48,9 @@ namespace CleanArchitecture.WebApi.Controllers
 
         /// <summary>
         /// Capture funds for an authorized payment.
+        /// Only accessible by Admins — the SAGA Orchestrator calls the Payment Service directly.
         /// </summary>
-        [Authorize]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [HttpPost("{id}/capture")]
         public async Task<IActionResult> CapturePayment(string id, [FromBody] PaymentCaptureRequest request)
         {

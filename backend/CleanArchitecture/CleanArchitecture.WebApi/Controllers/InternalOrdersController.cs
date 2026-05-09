@@ -26,7 +26,7 @@ namespace CleanArchitecture.WebApi.Controllers
         [HttpPost("{id}/payment-callback")]
         public async Task<IActionResult> PaymentCallback(string id, [FromBody] InternalPaymentCallbackRequest request)
         {
-            var configuredSecret = _configuration["InternalSecret"] ?? "change-me-in-production";
+            var configuredSecret = _configuration["InternalSettings:Secret"] ?? "GatewaySecret123!";
             var secret = Request.Headers["X-Internal-Secret"].ToString();
             
             if (string.IsNullOrEmpty(secret) || secret != configuredSecret)

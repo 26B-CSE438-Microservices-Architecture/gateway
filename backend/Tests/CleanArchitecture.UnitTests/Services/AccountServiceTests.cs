@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
+using System.Net.Http;
 
 namespace CleanArchitecture.UnitTests.Services
 {
@@ -34,6 +35,7 @@ namespace CleanArchitecture.UnitTests.Services
         private readonly ApplicationDbContext _dbContext;
         private readonly Mock<IUserService> _userServiceMock;
         private readonly Mock<IVendorService> _vendorServiceMock;
+        private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
         private readonly AccountService _accountService;
 
         public AccountServiceTests()
@@ -59,6 +61,7 @@ namespace CleanArchitecture.UnitTests.Services
             _dateTimeServiceMock = new Mock<IDateTimeService>();
             _userServiceMock = new Mock<IUserService>();
             _vendorServiceMock = new Mock<IVendorService>();
+            _httpClientFactoryMock = new Mock<IHttpClientFactory>();
 
             _jwtSettings = Options.Create(new JWTSettings
             {
@@ -84,7 +87,8 @@ namespace CleanArchitecture.UnitTests.Services
                 _emailServiceMock.Object,
                 _dbContext,
                 _userServiceMock.Object,
-                _vendorServiceMock.Object);
+                _vendorServiceMock.Object,
+                _httpClientFactoryMock.Object);
         }
 
         // ========================

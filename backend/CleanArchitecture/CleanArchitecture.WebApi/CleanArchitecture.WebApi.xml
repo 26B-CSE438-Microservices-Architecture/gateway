@@ -176,6 +176,7 @@
         <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.CapturePayment(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCaptureRequest)">
             <summary>
             Capture funds for an authorized payment.
+            Only accessible by Admins — the SAGA Orchestrator calls the Payment Service directly.
             </summary>
         </member>
         <member name="M:CleanArchitecture.WebApi.Controllers.PaymentsController.CancelPayment(System.String,CleanArchitecture.Core.DTOs.Payment.PaymentCancelRequest)">

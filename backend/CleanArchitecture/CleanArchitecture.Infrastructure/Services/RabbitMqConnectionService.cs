@@ -24,6 +24,7 @@ namespace CleanArchitecture.Infrastructure.Services
         private IConnection _connection;
         private IChannel _channel;
         private readonly SemaphoreSlim _semaphore = new(1, 1);
+        private readonly SemaphoreSlim _publishSemaphore = new(1, 1);
         private bool _disposed;
         private bool _exchangeDeclared;
 
@@ -67,6 +68,33 @@ namespace CleanArchitecture.Infrastructure.Services
 
         /// <summary>Bağlantı açık mı?</summary>
         public bool IsConnected => _connection != null && _connection.IsOpen;
+
+        /// <summary>
+        /// Thread-safe mesaj yayınlama metodu.
+        /// Tüm controller ve publisher'lar bu metodu kullanmalıdır —
+        /// paylaşılan IChannel eş zamanlı BasicPublishAsync çağrılarına karşı güvenli değildir.
+        /// </summary>
+        public async Task PublishAsync(
+            string routingKey,
+            BasicProperties properties,
+            byte[] body)
+        {
+            await _publishSemaphore.WaitAsync();
+            try
+            {
+                var channel = await GetChannelAsync();
+                await channel.BasicPublishAsync(
+                    exchange: ExchangeName,
+                    routingKey: routingKey,
+                    mandatory: false,
+                    basicProperties: properties,
+                    body: body);
+            }
+            finally
+            {
+                _publishSemaphore.Release();
+            }
+        }
 
         private async Task ConnectAsync()
         {

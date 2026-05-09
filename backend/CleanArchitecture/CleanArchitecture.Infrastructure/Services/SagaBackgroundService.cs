@@ -39,6 +39,10 @@ namespace CleanArchitecture.Infrastructure.Services
 
         public const string SagaCommandQueue = "gateway.saga.commands";
 
+        // Dead Letter Queue — başarısız mesajlar burada birikir (manuel inceleme için)
+        public const string DlxExchangeName  = "gateway.saga.dlx";
+        public const string DlqQueueName     = "gateway.saga.deadletter";
+
         // Komut tipleri
         public const string CMD_START             = "saga.command.start";
         public const string CMD_PAYMENT_CALLBACK  = "saga.command.payment-callback";
@@ -74,12 +78,38 @@ namespace CleanArchitecture.Infrastructure.Services
                 {
                     channel = await _connectionService.GetChannelAsync();
 
-                    // Komut kuyruğunu oluştur ve exchange'e bağla
+                    // ── Dead Letter Exchange kurulumu ──────────────────────────────────
+                    // Başarısız komutlar DLQ'ya düşer — kaybolmaz, manuel incelenebilir.
+                    // NOT: gateway.saga.commands kuyrukta daha önce DLX argümanı olmadan
+                    //      oluşturulduysa RabbitMQ Management UI'dan silinmesi gerekir.
+                    await channel.ExchangeDeclareAsync(
+                        exchange: DlxExchangeName,
+                        type: ExchangeType.Direct,
+                        durable: true,
+                        autoDelete: false);
+
+                    await channel.QueueDeclareAsync(
+                        queue: DlqQueueName,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false);
+
+                    await channel.QueueBindAsync(
+                        queue: DlqQueueName,
+                        exchange: DlxExchangeName,
+                        routingKey: SagaCommandQueue);
+
+                    // Komut kuyruğunu DLX argumanıyla oluştur
                     await channel.QueueDeclareAsync(
                         queue: SagaCommandQueue,
                         durable: true,
                         exclusive: false,
-                        autoDelete: false);
+                        autoDelete: false,
+                        arguments: new System.Collections.Generic.Dictionary<string, object>
+                        {
+                            ["x-dead-letter-exchange"]    = DlxExchangeName,
+                            ["x-dead-letter-routing-key"] = SagaCommandQueue
+                        });
 
                     // Tüm saga.command.* routing key'lerini dinle
                     await channel.QueueBindAsync(
@@ -126,8 +156,10 @@ namespace CleanArchitecture.Infrastructure.Services
                 {
                     _logger.LogError(ex, "[SagaWorker] ✗ Komut işlenirken hata: {RoutingKey}", routingKey);
 
-                    // Hata olsa bile mesajı onayla (dead letter'a düşmesin, zaten kompanasyon yapıyoruz)
-                    await channel.BasicAckAsync(ea.DeliveryTag, multiple: false);
+                    // BasicNack ile reddet — requeue:false = Dead Letter Queue'ya düşer
+                    // Kompanasyon zaten ProcessCommandAsync içinde yapılmıştır;
+                    // mesaj DLQ'da manuel inceleme için bekler.
+                    await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false);
                 }
             };
 
@@ -163,7 +195,7 @@ namespace CleanArchitecture.Infrastructure.Services
             // auth bilgisini SagaCommand üzerinden taşıyoruz.
             var sagaContext = scope.ServiceProvider.GetRequiredService<ISagaContextAccessor>();
             sagaContext.AuthToken = command.AuthToken;
-            sagaContext.UserId = command.UserId;
+            sagaContext.UserId    = command.UserId;
 
             var orchestrator = scope.ServiceProvider.GetRequiredService<IOrderSagaOrchestrator>();
 
@@ -172,28 +204,34 @@ namespace CleanArchitecture.Infrastructure.Services
                 case CMD_START:
                     _logger.LogInformation("[SagaWorker] 🚀 SAGA başlatılıyor. UserId={UserId}", command.UserId);
 
-                    var startRequest = JsonSerializer.Deserialize<StartOrderSagaRequest>(
-                        command.Payload?.ToString() ?? "{}", _jsonOpts);
+                    var startPayload = command.Payload.HasValue
+                        ? command.Payload.Value.GetRawText()
+                        : "{}";
+                    var startRequest = JsonSerializer.Deserialize<StartOrderSagaRequest>(startPayload, _jsonOpts);
 
                     await orchestrator.StartCheckoutSagaAsync(
-                        command.UserId, startRequest, command.IdempotencyKey);
+                        command.CommandId, command.UserId, startRequest, command.IdempotencyKey);
                     break;
 
                 case CMD_PAYMENT_CALLBACK:
                     _logger.LogInformation("[SagaWorker] 💳 Payment callback işleniyor. OrderId={OrderId}", command.OrderId);
 
-                    var callbackData = JsonSerializer.Deserialize<PaymentCallbackData>(
-                        command.Payload?.ToString() ?? "{}", _jsonOpts);
+                    var callbackPayload = command.Payload.HasValue
+                        ? command.Payload.Value.GetRawText()
+                        : "{}";
+                    var callbackData = JsonSerializer.Deserialize<PaymentCallbackData>(callbackPayload, _jsonOpts);
 
                     await orchestrator.HandlePaymentCallbackAsync(
                         command.OrderId, callbackData?.PaymentId, callbackData?.Token);
                     break;
 
                 case CMD_CONFIRM:
-                    _logger.LogInformation("[SagaWorker] ✅ Restoran onayı işleniyor. OrderId={OrderId}", command.OrderId);
+                    _logger.LogInformation("[SagaWorker] ✅ Restoran onaylı işleniyor. OrderId={OrderId}", command.OrderId);
 
-                    var confirmData = JsonSerializer.Deserialize<RestaurantActionData>(
-                        command.Payload?.ToString() ?? "{}", _jsonOpts);
+                    var confirmPayload = command.Payload.HasValue
+                        ? command.Payload.Value.GetRawText()
+                        : "{}";
+                    var confirmData = JsonSerializer.Deserialize<RestaurantActionData>(confirmPayload, _jsonOpts);
 
                     await orchestrator.HandleRestaurantConfirmAsync(
                         command.OrderId, confirmData?.RestaurantId);
@@ -202,8 +240,10 @@ namespace CleanArchitecture.Infrastructure.Services
                 case CMD_REJECT:
                     _logger.LogInformation("[SagaWorker] ❌ Restoran reddi işleniyor. OrderId={OrderId}", command.OrderId);
 
-                    var rejectData = JsonSerializer.Deserialize<RestaurantActionData>(
-                        command.Payload?.ToString() ?? "{}", _jsonOpts);
+                    var rejectPayload = command.Payload.HasValue
+                        ? command.Payload.Value.GetRawText()
+                        : "{}";
+                    var rejectData = JsonSerializer.Deserialize<RestaurantActionData>(rejectPayload, _jsonOpts);
 
                     await orchestrator.HandleRestaurantRejectAsync(
                         command.OrderId, rejectData?.RestaurantId, rejectData?.Reason ?? "restaurant_rejected");

@@ -26,7 +26,7 @@ namespace CleanArchitecture.Core.Interfaces
         /// <summary>
         /// Yeni bir Order SAGA başlatır: sepeti siparişe dönüştürür ve ödeme formunu hazırlar.
         /// </summary>
-        Task<SagaState> StartCheckoutSagaAsync(string userId, StartOrderSagaRequest request, string idempotencyKey);
+        Task<SagaState> StartCheckoutSagaAsync(string sagaId, string userId, StartOrderSagaRequest request, string idempotencyKey);
 
         /// <summary>
         /// iyzico'dan dönen ödeme callback'ini işler ve SAGA'yı ilerletir.

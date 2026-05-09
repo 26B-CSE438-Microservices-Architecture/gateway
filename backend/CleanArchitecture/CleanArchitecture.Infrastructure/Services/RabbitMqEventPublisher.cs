@@ -69,8 +69,6 @@ namespace CleanArchitecture.Infrastructure.Services
                 var json = JsonSerializer.Serialize(integrationEvent, _jsonOpts);
                 var body = Encoding.UTF8.GetBytes(json);
 
-                var channel = await _connectionService.GetChannelAsync();
-
                 var properties = new BasicProperties
                 {
                     ContentType  = "application/json",
@@ -81,12 +79,8 @@ namespace CleanArchitecture.Infrastructure.Services
                     CorrelationId = sagaId
                 };
 
-                await channel.BasicPublishAsync(
-                    exchange: RabbitMqConnectionService.ExchangeName,
-                    routingKey: eventType,
-                    mandatory: false,
-                    basicProperties: properties,
-                    body: body);
+                // Thread-safe publish — paylaşılan channel üzerinde race condition’u önler
+                await _connectionService.PublishAsync(eventType, properties, body);
 
                 _logger.LogInformation(
                     "[RabbitMQ] ✓ Event yayınlandı: {EventType} | OrderId={OrderId} | SagaId={SagaId}",
