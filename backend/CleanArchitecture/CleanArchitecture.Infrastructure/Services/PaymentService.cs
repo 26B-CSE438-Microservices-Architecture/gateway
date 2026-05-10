@@ -127,21 +127,32 @@ namespace CleanArchitecture.Infrastructure.Services
         public async Task<PaymentResponse> ProcessCallbackAsync(string paymentId, string token)
         {
             var body = new { token };
-            // Callback comes from browser redirect — no auth header needed
             var req = new HttpRequestMessage(HttpMethod.Post, $"payments/{paymentId}/checkout-form/callback");
             req.Content = JsonContent.Create(body, options: _jsonOpts);
 
             var response = await _httpClient.SendAsync(req);
+            var content = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
             {
-                var errorBody = await response.Content.ReadAsStringAsync();
                 throw new ApiException("PAYMENT_CALLBACK_FAILED",
-                    $"Payment callback processing failed (HTTP {(int)response.StatusCode}): {errorBody}");
+                    $"Payment callback failed (HTTP {(int)response.StatusCode}): {content}");
             }
 
-            var result = await response.Content.ReadFromJsonAsync<PaymentCallbackResponse>(_jsonOpts);
-            return result?.Payment;
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                throw new ApiException("EMPTY_RESPONSE", "Payment service returned an empty response.");
+            }
+
+            try
+            {
+                var result = JsonSerializer.Deserialize<PaymentCallbackResponse>(content, _jsonOpts);
+                return result?.Payment;
+            }
+            catch (JsonException ex)
+            {
+                throw new ApiException("INVALID_JSON", $"Failed to parse payment service response: {ex.Message}. Content: {content}");
+            }
         }
 
         private class PaymentCallbackResponse

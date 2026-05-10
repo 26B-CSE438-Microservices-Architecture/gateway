@@ -6,6 +6,7 @@ using CleanArchitecture.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Distributed;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -25,7 +26,7 @@ namespace CleanArchitecture.Infrastructure.Services
     /// Hata durumunda compensating transaction'ları otomatik başlatır.
     /// Her adımın sonunda RabbitMQ üzerinden asenkron event yayınlar.
     ///
-    /// SAGA State'leri in-memory Dictionary'de saklanır (production'da Redis/DB kullanılır).
+    /// SAGA State'leri Redis (IDistributedCache) üzerinde persistent olarak saklanır.
     /// </summary>
     public class OrderSagaOrchestrator : IOrderSagaOrchestrator
     {
@@ -35,10 +36,13 @@ namespace CleanArchitecture.Infrastructure.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<OrderSagaOrchestrator> _logger;
         private readonly IEventPublisher _eventPublisher;
+        private readonly IDistributedCache _cache;
 
-        // In-memory SAGA state store (key: orderId)
-        // Production'da bu bir persistent store (Redis, DB) olmalıdır.
-        private static readonly ConcurrentDictionary<string, SagaState> _sagaStore = new();
+        // Redis cache süresi (1 gün)
+        private static readonly DistributedCacheEntryOptions _cacheOptions = new()
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1)
+        };
 
         // SAGA adım isimleri
         private const string STEP_CHECKOUT        = "Checkout";
@@ -59,7 +63,8 @@ namespace CleanArchitecture.Infrastructure.Services
             IHttpContextAccessor httpContextAccessor,
             IConfiguration configuration,
             ILogger<OrderSagaOrchestrator> logger,
-            IEventPublisher eventPublisher)
+            IEventPublisher eventPublisher,
+            IDistributedCache cache)
         {
             _orderService         = orderService;
             _paymentService       = paymentService;
@@ -67,27 +72,46 @@ namespace CleanArchitecture.Infrastructure.Services
             _configuration        = configuration;
             _logger               = logger;
             _eventPublisher       = eventPublisher;
+            _cache                = cache;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Persistence Helpers
+        // ═══════════════════════════════════════════════════════════════════════
+
+        private async Task SaveSagaAsync(SagaState saga)
+        {
+            if (saga == null) return;
+            saga.UpdatedAt = DateTime.UtcNow;
+            var json = JsonSerializer.Serialize(saga, _jsonOpts);
+            
+            // Hem SagaId hem de OrderId ile erişebilmek için iki key kullanıyoruz
+            if (!string.IsNullOrEmpty(saga.SagaId))
+                await _cache.SetStringAsync($"saga:{saga.SagaId}", json, _cacheOptions);
+            
+            if (!string.IsNullOrEmpty(saga.OrderId))
+                await _cache.SetStringAsync($"saga:order:{saga.OrderId}", json, _cacheOptions);
+        }
+
+        private async Task<SagaState> FindSagaByIdOrOrderIdAsync(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return null;
+
+            // Önce sagaId olarak dene
+            var json = await _cache.GetStringAsync($"saga:{key}");
+            
+            // Yoksa orderId olarak dene
+            if (string.IsNullOrEmpty(json))
+                json = await _cache.GetStringAsync($"saga:order:{key}");
+
+            if (string.IsNullOrEmpty(json)) return null;
+
+            return JsonSerializer.Deserialize<SagaState>(json, _jsonOpts);
         }
 
         // ═══════════════════════════════════════════════════════════════════════
         // ADIM 1 + 2: Checkout → Payment Initialization
         // ═══════════════════════════════════════════════════════════════════════
-
-        private static void CleanupOldSagas()
-        {
-            var threshold = DateTime.UtcNow.AddHours(-1);
-            var keysToRemove = _sagaStore
-                .Where(kvp => (kvp.Value.Status == nameof(SagaStatus.PaymentCaptured) || 
-                               kvp.Value.Status == nameof(SagaStatus.Compensated)) && 
-                              kvp.Value.UpdatedAt < threshold)
-                .Select(kvp => kvp.Key)
-                .ToList();
-
-            foreach (var key in keysToRemove)
-            {
-                _sagaStore.TryRemove(key, out _);
-            }
-        }
 
         /// <summary>
         /// SAGA başlatır:
@@ -102,8 +126,6 @@ namespace CleanArchitecture.Infrastructure.Services
             StartOrderSagaRequest request,
             string idempotencyKey)
         {
-            CleanupOldSagas();
-
             var saga = new SagaState
             {
                 SagaId    = sagaId,
@@ -117,7 +139,7 @@ namespace CleanArchitecture.Infrastructure.Services
             _logger.LogInformation("[SAGA:{SagaId}] Checkout SAGA başladı. UserId={UserId}", sagaId, userId);
 
             // Register early so polling can find it by sagaId
-            _sagaStore[sagaId] = saga;
+            await SaveSagaAsync(saga);
 
             // ── ADIM 1: Checkout ──────────────────────────────────────────────
             UpdateStep(saga, STEP_CHECKOUT, "InProgress");
@@ -137,7 +159,8 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.Currency    = order.Currency ?? "TRY";
 
                 // Now that we have OrderId, store it with OrderId as key as well
-                _sagaStore[saga.OrderId] = saga;
+                await SaveSagaAsync(saga);
+                
                 UpdateStep(saga, STEP_CHECKOUT, "Success");
                 saga.Status      = nameof(SagaStatus.OrderCreated);
                 saga.CurrentStep = STEP_PAYMENT_INIT;
@@ -160,6 +183,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 await _eventPublisher.PublishAsync("saga.failed", null, sagaId, userId,
                     new { step = STEP_CHECKOUT, reason = ex.Message });
 
+                await SaveSagaAsync(saga);
                 return saga;
             }
 
@@ -183,9 +207,20 @@ namespace CleanArchitecture.Infrastructure.Services
                     Amount        = amountInMinorUnits,
                     Currency      = saga.Currency,
                     PaymentMethod = "card",
-                    CallbackUrl   = callbackUrl
-                    // Buyer ve Items: ileride User Service'ten çekilebilir.
-                    // Şimdilik Payment Service'in defaults'larına bırakıyoruz.
+                    CallbackUrl   = callbackUrl,
+                    Buyer = new BuyerDto
+                    {
+                        Id = userId,
+                        Name = "Saga",
+                        Surname = "User",
+                        Email = "sagauser@example.com",
+                        GsmNumber = "+905555555555",
+                        IdentityNumber = "11111111111",
+                        RegistrationAddress = "Test Address",
+                        City = "Istanbul",
+                        Country = "Turkey",
+                        ZipCode = "34000"
+                    }
                 };
 
                 var paymentResult = await _paymentService.InitializePaymentAsync(
@@ -209,6 +244,8 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.UpdatedAt   = DateTime.UtcNow;
 
                 _logger.LogInformation("[SAGA:{SagaId}] Adım 2 ✓ Ödeme başlatıldı. PaymentId={PaymentId}", sagaId, saga.PaymentId);
+                
+                await SaveSagaAsync(saga);
 
                 // RabbitMQ: Ödeme başlatıldı event'i yayınla
                 await _eventPublisher.PublishAsync("payment.initiated", saga.OrderId, sagaId, userId,
@@ -232,9 +269,10 @@ namespace CleanArchitecture.Infrastructure.Services
                     new { reason = "payment_init_failed", compensatedBy = "gateway" });
                 await _eventPublisher.PublishAsync("saga.failed", saga.OrderId, sagaId, userId,
                     new { step = STEP_PAYMENT_INIT, reason = ex.Message });
+                
+                await SaveSagaAsync(saga);
             }
 
-            _sagaStore[saga.OrderId] = saga;
             return saga;
         }
 
@@ -242,16 +280,11 @@ namespace CleanArchitecture.Infrastructure.Services
         // ADIM 3: Payment Callback (iyzico form tamamlandı)
         // ═══════════════════════════════════════════════════════════════════════
 
-        /// <summary>
-        /// iyzico'dan dönen token ile ödeme sonucunu sorgular.
-        /// Başarıda: Order Service'e HOLD_CONFIRMED callback gönderir.
-        /// Başarısızlıkta: Siparişi iptal eder (kompanasyon).
-        /// </summary>
         public async Task<SagaState> HandlePaymentCallbackAsync(
             string sagaId, string paymentId, string token)
         {
             // SAGA state'ini bul (sagaId veya orderId ile)
-            var saga = FindSagaByIdOrOrderId(sagaId);
+            var saga = await FindSagaByIdOrOrderIdAsync(sagaId);
             if (saga == null)
             {
                 _logger.LogWarning("[SAGA] Bulunamadı: {Key}", sagaId);
@@ -306,14 +339,14 @@ namespace CleanArchitecture.Infrastructure.Services
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[SAGA:{saga.SagaId}] Adım 3 ✗ Callback işleme hatası: {ex.Message}");
                 _logger.LogError(ex, "[SAGA:{SagaId}] Adım 3 ✗ Callback işleme hatası.", saga.SagaId);
                 UpdateStep(saga, STEP_PAYMENT_AUTH, "Failed", ex.Message);
                 saga.Status        = nameof(SagaStatus.Failed);
                 saga.FailureReason = $"Payment callback processing error: {ex.Message}";
             }
 
-            saga.UpdatedAt = DateTime.UtcNow;
-            _sagaStore[saga.OrderId] = saga;
+            await SaveSagaAsync(saga);
             return saga;
         }
 
@@ -321,17 +354,10 @@ namespace CleanArchitecture.Infrastructure.Services
         // ADIM 4 + 5: Restaurant Confirm → Payment Capture
         // ═══════════════════════════════════════════════════════════════════════
 
-        /// <summary>
-        /// Restoran onayını işler:
-        ///   4. Order Service'e confirm gönderir
-        ///   5. Payment Service'e capture gönderir → para çekilir
-        /// Hata olursa:
-        ///   - Payment void → Order cancel (kompanasyon)
-        /// </summary>
         public async Task<SagaState> HandleRestaurantConfirmAsync(
             string orderId, string restaurantId)
         {
-            var saga = GetSagaByOrderId(orderId);
+            var saga = await FindSagaByIdOrOrderIdAsync(orderId);
             if (saga == null)
             {
                 // SAGA state yoksa senkron proxy gibi davran
@@ -360,7 +386,7 @@ namespace CleanArchitecture.Infrastructure.Services
                 saga.Status        = nameof(SagaStatus.Failed);
                 saga.FailureReason = $"Restaurant confirmation failed: {ex.Message}";
                 saga.UpdatedAt     = DateTime.UtcNow;
-                _sagaStore[orderId] = saga;
+                await SaveSagaAsync(saga);
                 return saga;
             }
 
@@ -436,19 +462,14 @@ namespace CleanArchitecture.Infrastructure.Services
                     new { reason = "capture_failed", compensatedBy = "gateway" });
             }
 
-            saga.UpdatedAt = DateTime.UtcNow;
-            _sagaStore[orderId] = saga;
+            await SaveSagaAsync(saga);
             return saga;
         }
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // KOMPANASYON: Restoran Reddi
-        // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<SagaState> HandleRestaurantRejectAsync(
             string orderId, string restaurantId, string reason)
         {
-            var saga = GetSagaByOrderId(orderId) ?? CreateMinimalSaga(orderId, null);
+            var saga = await FindSagaByIdOrOrderIdAsync(orderId) ?? CreateMinimalSaga(orderId, null);
 
             _logger.LogInformation("[SAGA:{SagaId}] Restoran reddetti. Kompanasyon başlıyor. Reason={Reason}", saga.SagaId, reason);
             saga.Status = nameof(SagaStatus.Compensating);
@@ -473,7 +494,8 @@ namespace CleanArchitecture.Infrastructure.Services
 
             saga.Status        = nameof(SagaStatus.Compensated);
             saga.FailureReason = $"Restaurant rejected: {reason}";
-            saga.UpdatedAt     = DateTime.UtcNow;
+            
+            await SaveSagaAsync(saga);
 
             // RabbitMQ: Restoran reddi kompanasyon event'leri yayınla
             await _eventPublisher.PublishAsync("restaurant.rejected", orderId, saga.SagaId, saga.UserId,
@@ -485,17 +507,12 @@ namespace CleanArchitecture.Infrastructure.Services
                 await _eventPublisher.PublishAsync("payment.cancelled", orderId, saga.SagaId, saga.UserId,
                     new { saga.PaymentId, reason = "restaurant_rejected" });
             }
-            _sagaStore[orderId] = saga;
             return saga;
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // KOMPANASYON: Müşteri İptali
-        // ═══════════════════════════════════════════════════════════════════════
-
         public async Task<SagaState> CancelSagaAsync(string orderId, string userId)
         {
-            var saga = GetSagaByOrderId(orderId) ?? CreateMinimalSaga(orderId, userId);
+            var saga = await FindSagaByIdOrOrderIdAsync(orderId) ?? CreateMinimalSaga(orderId, userId);
 
             _logger.LogInformation("[SAGA:{SagaId}] Müşteri iptal isteği. OrderId={OrderId}", saga.SagaId, orderId);
             saga.Status = nameof(SagaStatus.Compensating);
@@ -511,7 +528,8 @@ namespace CleanArchitecture.Infrastructure.Services
 
             saga.Status        = nameof(SagaStatus.Compensated);
             saga.FailureReason = "Cancelled by customer";
-            saga.UpdatedAt     = DateTime.UtcNow;
+
+            await SaveSagaAsync(saga);
 
             // RabbitMQ: Müşteri iptali kompanasyon event'leri yayınla
             await _eventPublisher.PublishAsync("order.cancelled", orderId, saga.SagaId, userId,
@@ -521,30 +539,35 @@ namespace CleanArchitecture.Infrastructure.Services
                 await _eventPublisher.PublishAsync("payment.cancelled", orderId, saga.SagaId, userId,
                     new { saga.PaymentId, reason = "customer_cancel" });
             }
-            _sagaStore[orderId] = saga;
             return saga;
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // DURUM SORGULAMA
-        // ═══════════════════════════════════════════════════════════════════════
-
-        public Task<SagaState> GetSagaStateAsync(string key)
+        public async Task<SagaState> GetSagaStateAsync(string key)
         {
-            // Önce orderId olarak ara
-            if (_sagaStore.TryGetValue(key, out var saga)) return Task.FromResult(saga);
-            // Sonra sagaId olarak ara (SAGA başlar başlamaz orderId henüz yoktur)
-            var bySagaId = _sagaStore.Values.FirstOrDefault(s => s.SagaId == key);
-            return Task.FromResult(bySagaId);
+            return await FindSagaByIdOrOrderIdAsync(key);
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // YARDIMCI METODLAR — Kompanasyon
-        // ═══════════════════════════════════════════════════════════════════════
+        private async Task CompensateCancelOrderAsync(SagaState saga, string reason)
+        {
+            if (string.IsNullOrEmpty(saga.OrderId)) return;
 
-        /// <summary>
-        /// Payment'ı void veya refund eder (durumuna göre Payment Service karar verir).
-        /// </summary>
+            try
+            {
+                await _orderService.CancelOrderAsync(saga.UserId, saga.OrderId);
+                UpdateStep(saga, STEP_CHECKOUT, "Compensated",
+                    compensationAction: "order.cancel",
+                    compensationStatus: "Success");
+
+                _logger.LogInformation("[SAGA:{SagaId}] Kompanasyon ✓ Sipariş iptal edildi. OrderId={OrderId}",
+                    saga.SagaId, saga.OrderId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[SAGA:{SagaId}] Kompanasyon ✗ Sipariş iptali başarısız (zaten iptal edilmiş olabilir). OrderId={OrderId}",
+                    saga.SagaId, saga.OrderId);
+            }
+        }
+
         private async Task CompensateVoidPaymentAsync(SagaState saga, string reason)
         {
             var paymentIdToCancel = saga.PaymentId;
@@ -556,7 +579,6 @@ namespace CleanArchitecture.Infrastructure.Services
                     var payments = await _paymentService.GetPaymentsByOrderIdAsync(saga.OrderId);
                     if (payments != null && payments.Count > 0)
                     {
-                        // En güncel payment id'yi alıyoruz (genelde ilk veya tek kayıttır)
                         paymentIdToCancel = payments[0].Id;
                         saga.PaymentId = paymentIdToCancel;
                         _logger.LogInformation("[SAGA:{SagaId}] PaymentId hafızada yoktu, Payment Service'ten bulundu: {PaymentId}", saga.SagaId, paymentIdToCancel);
@@ -590,34 +612,6 @@ namespace CleanArchitecture.Infrastructure.Services
             }
         }
 
-        /// <summary>
-        /// Order Service'e sipariş iptali gönderir.
-        /// </summary>
-        private async Task CompensateCancelOrderAsync(SagaState saga, string reason)
-        {
-            if (string.IsNullOrEmpty(saga.OrderId)) return;
-
-            try
-            {
-                await _orderService.CancelOrderAsync(saga.UserId, saga.OrderId);
-                UpdateStep(saga, STEP_CHECKOUT, "Compensated",
-                    compensationAction: "order.cancel",
-                    compensationStatus: "Success");
-
-                _logger.LogInformation("[SAGA:{SagaId}] Kompanasyon ✓ Sipariş iptal edildi. OrderId={OrderId}",
-                    saga.SagaId, saga.OrderId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "[SAGA:{SagaId}] Kompanasyon ✗ Sipariş iptali başarısız (zaten iptal edilmiş olabilir). OrderId={OrderId}",
-                    saga.SagaId, saga.OrderId);
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // YARDIMCI METODLAR — Yardımcılar
-        // ═══════════════════════════════════════════════════════════════════════
-
         private static List<SagaStep> InitializeSteps() => new()
         {
             new SagaStep { StepName = STEP_CHECKOUT,        Status = "Pending", CompensationAction = "order.cancel" },
@@ -644,22 +638,6 @@ namespace CleanArchitecture.Infrastructure.Services
             if (errorMessage != null) step.ErrorMessage = errorMessage;
             if (compensationAction != null) step.CompensationAction = compensationAction;
             if (compensationStatus != null) step.CompensationStatus = compensationStatus;
-        }
-
-        private SagaState GetSagaByOrderId(string orderId)
-        {
-            _sagaStore.TryGetValue(orderId, out var saga);
-            return saga;
-        }
-
-        private SagaState FindSagaByIdOrOrderId(string key)
-        {
-            // Önce orderId olarak ara
-            if (_sagaStore.TryGetValue(key, out var saga)) return saga;
-            // Sonra sagaId olarak ara
-            foreach (var s in _sagaStore.Values)
-                if (s.SagaId == key) return s;
-            return null;
         }
 
         private static SagaState CreateMinimalSaga(string orderId, string userId) => new()

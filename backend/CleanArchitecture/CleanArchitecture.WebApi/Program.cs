@@ -142,7 +142,7 @@ else
 app.UseHttpsRedirection();
 
 app.UseErrorHandlingMiddleware();
-app.UsePathBase("/cse438");
+app.UsePathBase("/cse-438");
 app.UseRouting();
 app.UseRateLimiter();
 

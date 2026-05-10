@@ -36,6 +36,12 @@ namespace CleanArchitecture.Infrastructure
                    b => b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
             }
 
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = configuration.GetConnectionString("RedisConnection") ?? "redis:6379";
+                options.InstanceName = "Saga_";
+            });
+
             services.AddIdentity<ApplicationUser, IdentityRole>().AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
             #region Services
             services.AddTransient<IAccountService, AccountService>();

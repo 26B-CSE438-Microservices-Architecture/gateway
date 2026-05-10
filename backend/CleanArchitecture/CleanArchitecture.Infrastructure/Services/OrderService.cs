@@ -113,7 +113,24 @@ namespace CleanArchitecture.Infrastructure.Services
 
                 throw new ApiException(errorCode, message);
             }
-            return await response.Content.ReadFromJsonAsync<T>(_jsonOpts);
+
+            // Boş body kontrolü (ReadFromJsonAsync boş gövdede hata fırlatır)
+            if (response.Content.Headers.ContentLength == 0)
+            {
+                return default;
+            }
+
+            try
+            {
+                return await response.Content.ReadFromJsonAsync<T>(_jsonOpts);
+            }
+            catch (JsonException)
+            {
+                // Alternatif olarak string okuyup boşluk kontrolü yap
+                var content = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrWhiteSpace(content)) return default;
+                throw;
+            }
         }
 
         // ─── Mapper: Java OsCartResponse → C# CartResponse ─────────────────────

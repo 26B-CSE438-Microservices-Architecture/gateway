@@ -69,6 +69,7 @@ namespace CleanArchitecture.Infrastructure.Services
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("[SagaWorker] Asenkron SAGA worker başlatılıyor...");
+            Console.WriteLine("[SagaWorker] Asenkron SAGA worker başlatılıyor... (Console)");
 
             // RabbitMQ bağlantısı hazır olana kadar bekle
             IChannel channel = null;
@@ -158,6 +159,7 @@ namespace CleanArchitecture.Infrastructure.Services
             var consumer = new AsyncEventingBasicConsumer(channel);
             consumer.ReceivedAsync += async (_, ea) =>
             {
+                Console.WriteLine($"[SagaWorker] Mesaj alındı: {ea.RoutingKey}");
                 var body = Encoding.UTF8.GetString(ea.Body.ToArray());
                 var routingKey = ea.RoutingKey;
 
