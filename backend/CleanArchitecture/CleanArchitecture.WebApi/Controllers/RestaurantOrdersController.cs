@@ -122,7 +122,8 @@ namespace CleanArchitecture.WebApi.Controllers
         {
             var restaurantId = User.FindFirstValue("restaurant_id");
             if (string.IsNullOrEmpty(restaurantId)) return BadRequest("User is not associated with any restaurant.");
-            return Ok(await _orderService.UpdateOrderStatusAsync(restaurantId, id, request.Status));
+            await _orderService.UpdateOrderStatusAsync(restaurantId, id, request.Status);
+            return NoContent();
         }
 
         // ─── Yardımcı: RabbitMQ'ya komut yayınla ──────────────────────────────

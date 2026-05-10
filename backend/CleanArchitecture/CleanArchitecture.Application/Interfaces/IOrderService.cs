@@ -25,7 +25,7 @@ namespace CleanArchitecture.Core.Interfaces
         Task<PagedResponse<OrderResponse>> GetRestaurantOrdersAsync(string restaurantId, string status, int page, int size);
         Task<OrderResponse> ConfirmOrderAsync(string restaurantId, string orderId);
         Task<OrderResponse> RejectOrderAsync(string restaurantId, string orderId);
-        Task<OrderResponse> UpdateOrderStatusAsync(string restaurantId, string orderId, string status);
+        Task UpdateOrderStatusAsync(string restaurantId, string orderId, string status);
 
         // --- Internal Operations ---
         Task<OrderResponse> ProcessPaymentCallbackAsync(string orderId, string status);
