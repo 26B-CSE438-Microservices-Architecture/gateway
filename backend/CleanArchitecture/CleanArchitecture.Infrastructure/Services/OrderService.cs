@@ -296,11 +296,11 @@ namespace CleanArchitecture.Infrastructure.Services
             return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
         }
 
-        public async Task<OrderResponse> UpdateOrderStatusAsync(string restaurantId, string orderId, string status)
+        public async Task UpdateOrderStatusAsync(string restaurantId, string orderId, string status)
         {
             var body = new { status };
             var req = BuildRequest(HttpMethod.Patch, $"orders/restaurant/{orderId}/status", body);
-            return MapToOrderResponse(await SendAsync<OsOrderResponse>(req));
+            await SendVoidAsync(req);
         }
 
         // ─── Internal Operations ──────────────────────────────────────────────────
