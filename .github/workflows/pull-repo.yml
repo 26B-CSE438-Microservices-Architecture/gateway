@@ -10,6 +10,10 @@ jobs:
   pull-code:
     runs-on: self-hosted
     steps:
+      - name: Discard local changes
+        run: |
+          cd /home/cse438/trendyol-clone/repos/gateway
+          git reset --hard
       - name: Git Fetch and Pull
         run: |
           cd /home/cse438/trendyol-clone/repos/gateway
