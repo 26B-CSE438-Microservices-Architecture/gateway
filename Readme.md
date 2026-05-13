@@ -1,155 +1,208 @@
-# Trendyol Go Clone - API Gateway & Auth Service 
-## Team Members
-* Melike Esra Öz
-* Sude Akıncı
-* Mustafa Özger
+# Trendyol Go Clone — API Gateway & Auth Service
 
-## Project Overview
-This repository contains the central API Gateway and Authentication/Authorization service for the Trendyol Go microservices architecture. Acting as the system's single entry point, this service intercepts all incoming requests from the client application (Frontend), handles security validations, and seamlessly routes traffic to the appropriate downstream microservices (e.g., User, Order, Payment, Restaurant) using Microsoft's high-performance reverse proxy, YARP.
+**Team Members:** Melike Esra Öz · Sude Akıncı · Mustafa Özger
 
+---
 
+## Overview
+
+This repository is the **single entry point** of the Trendyol Go microservices architecture. It has two core responsibilities:
+
+1. **Auth Service** — Identity management built on ASP.NET Core Identity + PostgreSQL. Handles registration, login, JWT issuance, token refresh, and password management. Exposes a gRPC endpoint for real-time token verification by downstream services.
+
+2. **API Gateway (BFF)** — Authenticates every inbound request, injects verified identity headers, and either handles the request locally (profile aggregation, cart, saga orchestration) or forwards it to a downstream microservice via YARP.
+
+---
 
 ## Technology Stack
-* **Framework:** ASP.NET Core Web API (.NET 8/9)
-* **Reverse Proxy / Gateway:** YARP (Yet Another Reverse Proxy)
-* **Security:** JWT (JSON Web Token) Bearer Authentication & ASP.NET Core Identity
-* **Database:** PostgreSQL (User & Role Persistence)
-* **Cache:** Redis (Refresh Token & Rate Limiting Storage)
-* **Communication:** gRPC (Internal Auth Check) & REST (External Routing)
-* **Containerization:** Docker & Docker Compose
+
+| Concern | Technology |
+| :--- | :--- |
+| Framework | ASP.NET Core Web API (.NET 9) |
+| Reverse Proxy | YARP 2.2 |
+| Auth | ASP.NET Core Identity + JWT Bearer |
+| Database | PostgreSQL (Identity persistence) |
+| Cache | Redis (health-monitored; reserved for future use) |
+| Messaging | RabbitMQ (Saga command bus) |
+| Internal RPC | gRPC |
+| Containerization | Docker & Docker Compose |
 
 ---
 
-## Gateway & Auth Service Requirements & Deliverables
+## Architecture
 
-As the central entry point of the architecture, the Gateway/Auth service must fulfill specific infrastructure and security-oriented requirements:
-
-### 1. Infrastructure & Security Persistence
-* **Auth Persistence:** A dedicated **PostgreSQL** database must be managed to store user credentials, profile information, and role assignments.
-* **Session Persistence:** A low-latency **Redis** cache layer must be utilized to store Refresh Tokens and track Rate Limiting counters.
-* **Secret Management:** Sensitive data such as JWT Signing Keys and Database Connection Strings must be managed securely via `User Secrets` or `Environment Variables`.
-
-### 2. Core Gateway Functionalities (YARP)
-* **Reverse Proxy:** Using **YARP (Yet Another Reverse Proxy)**, incoming requests must be matched and routed to the correct downstream microservice based on path patterns.
-* **Request Transformation:** The Gateway must strip the `/api` prefix from incoming URIs and inject verified user identity headers (`X-User-Id`, `X-User-Role`) before forwarding.
-* **Global CORS & Rate Limiting:** A global CORS policy must restrict traffic to verified Frontend origins, and IP-based Rate Limiting must be enforced to prevent DoS attacks.
-
-
-
-### 3. Identity & Authentication Logic
-* **JWT Generation:** Upon successful login, the service must issue a short-lived `AccessToken` and a long-lived `RefreshToken`.
-* **Role-Based Access Control (RBAC):** Requests must be filtered at the Gateway level based on the required authorization (e.g., Customer, RestaurantOwner) defined in the route configuration.
-* **Internal Communication:** A **gRPC** server must be available for high-speed internal authorization checks if downstream services need to verify permissions in real-time.
-
-### 4. Observability & Health
-* **Aggregated Swagger:** The Gateway should act as a central hub, aggregating the OpenAPI/Swagger documentation from all downstream services into a single UI.
-* **Health Checks:** The service must expose a `/health` endpoint that monitors its own status as well as its connectivity to Redis and PostgreSQL.
-* **Structured Logging:** All routing failures, 401 Unauthorized, and 403 Forbidden attempts must be logged in a structured format for security auditing.
-
-
-
-### 5. Docker & Orchestration
-* **Network Entrypoint:** In the `docker-compose.yml`, the Gateway must be defined as the primary entrypoint for the `backend-network`.
-* **Dependency Management:** The Gateway container must use `depends_on` with `healthcheck` conditions to ensure it only starts after the PostgreSQL and Redis instances are fully operational.
----
-
-## Database & Schema Design (Gateway/Auth)
-The Auth service manages a dedicated PostgreSQL database to handle user identities:
-
-* **Users:** Id, Email, PasswordHash, FullName, PhoneNumber.
-* **UserRoles:** Customer, RestaurantOwner.
-* **RefreshTokens:** Token, UserId, ExpiryDate, IsRevoked.
-
----
-
-## API Interfaces & Endpoints
-
-### 1. Authentication Service - `api/v1/auth`
-| Method | Endpoint | Description | Auth |
-| :--- | :--- | :--- | :--- |
-| POST | `/login` | Authenticates user via Email/Password, returns JWT and Refresh Token. | Public |
-| POST | `/register` | Creates a new user account (Default role: `Customer`). | Public |
-| POST | `/refresh-token` | Refreshes an expired Access Token using a valid Refresh Token. | Public |
-| POST | `/logout` | Revokes the current Refresh Token and logs the user out. | Public |
-| POST | `/forgot-password` | Sends a password reset code to the user's email. | Public |
-| POST | `/reset-password` | Resets the password using the received code. | Public |
-| GET | `/confirm-email` | Completes the email verification process. | Public |
-| POST | `/change-password`| Changes the password for the currently authenticated user. | JWT Required |
-| PUT | `/profile` | Updates user profile details. | JWT Required |
-| DELETE| `/account` | Permanently deletes the user account and all associated tokens. | JWT Required |
-
-### 2. User Service - `api/v1/users`
-| Method | Endpoint | Description | Auth |
-| :--- | :--- | :--- | :--- |
-| GET | `/me` | Get the authenticated user's profile. | JWT Required |
-| PUT | `/me` | Update the user's profile (name, phone). | JWT Required |
-| GET | `/me/addresses` | List all saved delivery addresses. | JWT Required |
-| POST | `/me/addresses` | Add a new delivery address. | JWT Required |
-| PUT | `/me/addresses/{id}` | Update an existing delivery address. | JWT Required |
-| PATCH| `/me/addresses/{id}/current`| Set an address as the current/default delivery address. | JWT Required |
-| DELETE| `/me/addresses/{id}` | Remove a delivery address. | JWT Required |
-| GET | `/me/favorites` | Get favorites aggregated from User and Restaurant services. | JWT Required |
-| POST | `/me/favorites/{vendor_id}` | Add a vendor to favorites. | JWT Required |
-| DELETE| `/me/favorites/{vendor_id}`| Remove a vendor from favorites. | JWT Required |
-
-### 3. Infrastructure & Monitoring Endpoints
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| GET | `/health` | Reports overall service and database health status (Internal check). |
-| GET | `/swagger` | Central UI for exploring local API endpoints and proxied microservices. |
-
-### 4. Gateway Proxied Interfaces (YARP)
-The Gateway acts as a reverse proxy, stripping the `/api` prefix and injecting verified identity headers:
-* `X-User-Id`: Extracted from the `uid` claim.
-* `X-User-Role`: Extracted from the `roles` claim (e.g., Customer, RestaurantOwner).
-
-| Source Path | Target Service | Logic / Responsibility |
-| :--- | :--- | :--- |
-| `/api/order/**` | Order Service | Order placement and tracking |
-| `/api/restaurant/**` | Restaurant Service | Menu browsing and management |
-| `/api/payment/**` | Payment Service | Payment processing |
-| `/api/user/**` | User Service | User profile management |
-
----
-
-## Service Communication & Logic Flow
-1. **Request:** Client sends request to Gateway.
-2. **Auth:** Gateway validates JWT. If valid, extracts Claims.
-3. **Transformation:** Gateway strips `/api` and adds `X-User-Id` header.
-4. **Routing:** YARP forwards request to the Load Balanced destination of the target service.
-
----
-
-## Setup & First Requirements
-To get the gateway running in a local development environment:
-
-### 1. Infrastructure Setup
-Start the required infrastructure using Docker:
-```bash
-docker-compose up -d postgres-db redis-cache
+```
+                        ┌──────────────────────────────────────────┐
+                        │       API Gateway & Auth Service         │
+                        │                                          │
+  Client ──────────────▶│  JWT Middleware                          │
+                        │    └─ validates token                    │
+                        │    └─ injects X-User-Id, X-User-Role     │
+                        │                                          │
+                        │  ┌──────────────┐   ┌──────────────────┐ │
+                        │  │ Auth Service │   │   BFF Layer      │ │
+                        │  │              │   │                  │ │
+                        │  │  Identity    │   │  aggregates and  │ │
+                        │  │  JWT/Refresh │   │  orchestrates    │ │
+                        │  │  gRPC server │   │  downstream APIs │ │
+                        │  └──────────────┘   └────────┬─────────┘ │
+                        │                              │           │
+                        │              ┌───────────────┘           │
+                        │              │  YARP Reverse Proxy       │
+                        │              │  (transparent forwarding) │
+                        └──────────────┼───────────────────────────┘
+                                       │
+               ┌───────────────────────┼──────────────────────┐
+               │               RabbitMQ│(Saga)                │
+               ▼                       ▼                      ▼
+       ┌──────────────┐      ┌──────────────────┐   ┌──────────────────┐
+       │ order-service│      │restaurant-service│   │ payment-service  │
+       │    :8082     │      │ :5000 (YARP)     │   │     :3000        │
+       └──────────────┘      │ :5001 (BFF)      │   └──────────────────┘
+                             └──────────────────┘   ┌──────────────────┐
+                                                    │  user-service    │
+                                                    │     :8000        │
+                                                    └──────────────────┘
 ```
 
-### 2. Configuration
-Define your JWT settings in appsettings.json:
+---
+
+## Service Communication
+
+### 1. YARP — Transparent Reverse Proxy
+
+Certain routes are forwarded directly to downstream services without any BFF logic. Before forwarding, YARP injects the verified identity headers extracted from the JWT:
+
+- `X-User-Id` — from the `uid` claim
+- `X-User-Role` — from the `roles` claim
+
+| Inbound Path | Target Service | Forwarded As |
+| :--- | :--- | :--- |
+| `/api/order/{**}` | `order-service:8082` | `/{**}` |
+| `/api/restaurant/{**}` | `restaurant-service:5000` | `/api/v1/restaurants/{**}` |
+| `/api/payment/{**}` | `payment-service:3000` | `/payments/{**}` |
+| `/api/user/{**}` | `user-service:8000` | `/api/v1/users/{**}` |
+
+---
+
+### 2. Named HTTP Clients — BFF Aggregation
+
+For endpoints that require aggregating data from multiple services (e.g. user profile + restaurant details for favorites), the gateway calls downstream services directly using named `HttpClient` instances. The current `Authorization` header from the inbound request is forwarded to maintain the authenticated context.
+
+| Client Name | Target | Used By |
+| :--- | :--- | :--- |
+| `user` | `user-service:8000` | Profile, addresses, favorites |
+| `order` | `order-service:8082` | Cart, orders, checkout |
+| `restaurant` | `restaurant-service:5001` | Vendors, campaigns, search, reviews |
+| `payment` | `payment-service:3000` | Payments |
+
+---
+
+### 3. RabbitMQ — Saga Command Bus
+
+The Order Saga Orchestrator uses RabbitMQ to drive distributed transactions asynchronously. The gateway publishes commands to a topic exchange and `SagaBackgroundService` consumes them in the background, executing each saga step (order creation → payment → restaurant confirmation) and running compensation logic on failure.
+
+| Routing Key | Trigger |
+| :--- | :--- |
+| `saga.command.start` | New order initiated |
+| `saga.command.payment-callback` | iyzico payment result received |
+| `saga.command.confirm` | Restaurant approves the order |
+| `saga.command.reject` | Restaurant rejects the order |
+| `saga.command.cancel` | Customer cancels (triggers compensation) |
+
+---
+
+### 4. gRPC — Internal Token Verification
+
+`AuthGrpcService` exposes a high-speed gRPC endpoint that downstream services can call to verify a JWT and retrieve the caller's identity without making an HTTP round-trip through the gateway.
+
+---
+
+### 5. Internal REST — Service-to-Service
+
+Other microservices can call the gateway's internal endpoints to query Identity data (user lookup, role assignment). Most of these endpoints are protected by a shared `X-Internal-Secret` header and are not exposed to clients.
+
+| Path | Protected | Description |
+| :--- | :--- | :--- |
+| `POST internal/v1/users/{userId}/roles` | X-Internal-Secret | Assign a role to a user |
+| `GET  internal/v1/users/{userId}` | X-Internal-Secret | Fetch user by ID |
+| `POST internal/v1/users/lookup` | X-Internal-Secret | Bulk fetch users by ID list |
+| `GET  internal/v1/users/by-email` | X-Internal-Secret | Fetch user by email |
+| `POST internal/v1/vendors/lookup` | No auth | Bulk fetch vendor details |
+| `POST api/v1/internal/orders/{id}/payment-callback` | X-Internal-Secret | Forward payment callback to Order Service |
+
+---
+
+## Auth Endpoints — `api/v1/auth`
+
+The only endpoints implemented and owned entirely by this service.
+
+| Method | Path | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| POST | `/register` | Create a new account (default role: `Customer`) | Public |
+| POST | `/login` | Authenticate with email/password, returns JWT + Refresh Token | Public |
+| POST | `/refresh-token` | Exchange a valid Refresh Token for a new Access Token | Public |
+| POST | `/logout` | Revoke the current Refresh Token | Public |
+| POST | `/forgot-password` | Send a password reset code to the user's email | Public |
+| POST | `/reset-password` | Reset password using the received code | Public |
+| GET | `/confirm-email` | Complete email verification | Public |
+| POST | `/verify-token` | Validate a JWT and return its claims | Public |
+| GET | `/me` | Get the authenticated user's identity | JWT Required |
+| POST | `/change-password` | Change password for the authenticated user | JWT Required |
+| PUT | `/profile` | Update auth-level profile | JWT Required |
+| DELETE | `/account` | Permanently delete the account and all tokens | JWT Required |
+
+---
+
+## Infrastructure
+
+| Endpoint | Description |
+| :--- | :--- |
+| `GET /health` | Service health — checks PostgreSQL and Redis connectivity |
+| `GET /swagger` | Swagger UI |
+| `GET /info` | Service version and last updated timestamp |
+
+---
+
+## Database Schema
+
+Managed by this service via Entity Framework Core + PostgreSQL.
+
+- **User** — Id, Email, PasswordHash, FirstName, LastName, PhoneNumber, EmailConfirmed
+- **Role** — `Customer`, `RestaurantOwner`
+- **UserRoles** — User ↔ Role mapping
+- **RefreshTokens** — Id, Token, Expires, Created, CreatedByIp, Revoked, RevokedByIp, ReplacedByToken
+
+---
+
+## Setup
+
+### 1. Start infrastructure
 
 ```bash
-JSON
+docker-compose up -d postgres redis
+```
+
+### 2. Configure secrets
+
+```json
 {
-  "JwtSettings": {
-    "Secret": "Your_Super_Secret_Key_Here",
-    "Issuer": "TrendyolGo.Auth",
-    "Audience": "TrendyolGo.Clients"
+  "JWTSettings": {
+    "Key": "Your_Super_Secret_Key_Here",
+    "Issuer": "Gateway.Auth.Service",
+    "Audience": "Gateway.Clients"
   }
 }
 ```
-### 3. Database Migration
-Apply the Identity schema to your PostgreSQL instance:
+
+### 3. Apply migrations
 
 ```bash
 dotnet ef database update
 ```
-### 4. Running the Service
+
+### 4. Run
+
 ```bash
-dotnet build
-dotnet run --project Gateway.Auth.Service
+dotnet run --project CleanArchitecture.WebApi
 ```
